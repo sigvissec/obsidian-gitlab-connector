@@ -1,0 +1,154 @@
+/* ── GitLab Connector Plugin Styles ────────────────────────── */
+
+/* ── Conflict Modal ──────────────────────────────────────── */
+
+.glc-conflict-modal .modal-content {
+	padding: 0;
+}
+
+.glc-conflict-header {
+	padding: 16px 20px 8px;
+}
+
+.glc-conflict-header h2 {
+	margin: 0 0 4px 0;
+	font-size: 1.2em;
+}
+
+.glc-conflict-filename {
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	color: var(--text-muted);
+	word-break: break-all;
+}
+
+.glc-conflict-context {
+	padding: 8px 20px;
+}
+
+.glc-conflict-auto-badge {
+	padding: 8px 12px;
+	background: var(--background-modifier-success);
+	border-radius: 6px;
+	font-size: 0.85em;
+}
+
+.glc-conflict-manual-badge {
+	padding: 8px 12px;
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+	border-radius: 6px;
+	font-size: 0.85em;
+}
+
+/* ── Diff View ───────────────────────────────────────────── */
+
+.glc-diff-container {
+	padding: 8px 20px;
+	max-height: 50vh;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.glc-diff {
+	font-family: var(--font-monospace);
+	font-size: 0.8em;
+	line-height: 1.5;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.glc-diff-hunk-header {
+	padding: 4px 12px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: 0.85em;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.glc-diff-line {
+	padding: 2px 12px;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.glc-diff-added {
+	background: rgba(0, 180, 0, 0.15);
+}
+
+.glc-diff-removed {
+	background: rgba(220, 0, 0, 0.15);
+}
+
+.glc-diff-context {
+	color: var(--text-muted);
+}
+
+/* ── Action Buttons ──────────────────────────────────────── */
+
+.glc-conflict-actions,
+.glc-deletion-actions,
+.glc-initial-sync-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding: 16px 20px;
+	justify-content: center;
+}
+
+.glc-action-btn {
+	min-width: 120px;
+	min-height: 44px;
+	font-size: 0.95em;
+	padding: 10px 16px;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+/* ── Deletion Modal ──────────────────────────────────────── */
+
+.glc-deletion-modal h2 {
+	margin-top: 0;
+}
+
+.glc-deletion-list {
+	padding: 8px 0;
+	max-height: 40vh;
+	overflow-y: auto;
+}
+
+.glc-deletion-item {
+	padding: 6px 12px;
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* ── Progress Modal ──────────────────────────────────────── */
+
+.glc-progress-modal .modal-content {
+	text-align: center;
+}
+
+.glc-progress-message {
+	font-size: 1.1em;
+	padding: 16px 0 4px;
+}
+
+.glc-progress-detail {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	padding-bottom: 16px;
+}
+
+/* ── Initial Sync Modal ──────────────────────────────────── */
+
+.glc-initial-sync-modal h2 {
+	margin-top: 0;
+}
+
+.glc-initial-sync-modal p {
+	color: var(--text-muted);
+}
