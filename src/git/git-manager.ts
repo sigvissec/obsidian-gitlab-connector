@@ -12,7 +12,7 @@ import { httpAdapter as http } from "./http-adapter";
 import type FS from "@isomorphic-git/lightning-fs";
 import { getFs, getRepoDir, repoExists, ensureRepoDir, wipeFs } from "./fs-adapter";
 import { createAuthCallback, createAuthFailureCallback } from "./auth";
-import { isMarkdownFile, isInSubfolder } from "../utils/path";
+import { isMarkdownFile, isInSubfolder, assertSafePath } from "../utils/path";
 
 export interface GitManagerConfig {
 	/** Full HTTPS clone URL (e.g. https://gitlab.com/user/repo.git). */
@@ -326,6 +326,7 @@ export class GitManager {
 	 * This is needed before staging and committing.
 	 */
 	async writeFile(filepath: string, content: string): Promise<void> {
+		assertSafePath(filepath);
 		const fullPath = `${this.dir}/${filepath}`;
 		// Ensure parent directories exist
 		const parts = filepath.split("/");
@@ -343,6 +344,7 @@ export class GitManager {
 
 	/** Delete a file from the LightningFS working directory. */
 	async deleteFile(filepath: string): Promise<void> {
+		assertSafePath(filepath);
 		const fullPath = `${this.dir}/${filepath}`;
 		try {
 			await this.fs.promises.unlink(fullPath);

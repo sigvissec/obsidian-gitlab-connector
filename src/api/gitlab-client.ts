@@ -25,10 +25,22 @@ export class GitLabClient {
 	private projectId: string;
 
 	constructor(gitlabUrl: string, token: string, projectPath: string) {
-		// Strip trailing slash from URL
-		this.baseUrl = gitlabUrl.replace(/\/+$/, "");
+		// Enforce HTTPS to prevent token exfiltration over plaintext or SSRF
+		const trimmed = gitlabUrl.replace(/\/+$/, "");
+		if (!/^https:\/\//i.test(trimmed)) {
+			throw new Error(
+				"GitLab URL must use HTTPS. " +
+				"HTTP connections are rejected to protect your Personal Access Token.",
+			);
+		}
+		this.baseUrl = trimmed;
 		this.token = token;
-		// Project path needs URL encoding for use in API paths
+		// Validate project path format to prevent URL injection
+		if (projectPath && !/^[\w\-./]+$/.test(projectPath)) {
+			throw new Error(
+				"Invalid project path. Only alphanumeric characters, hyphens, underscores, dots, and forward slashes are allowed.",
+			);
+		}
 		this.projectId = encodeURIComponent(projectPath);
 	}
 
@@ -267,7 +279,6 @@ export class GitLabClient {
 
 		console.debug("[GitLab Connector] HTTP response", {
 			status: response.status,
-			...(response.status >= 400 && { body: response.text }),
 		});
 
 		if (response.status >= 400) {

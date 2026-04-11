@@ -13,6 +13,21 @@ export function isMarkdownFile(path: string): boolean {
 	return path.toLowerCase().endsWith(MARKDOWN_EXTENSION);
 }
 
+/**
+ * Reject paths containing traversal sequences (`..`) or absolute prefixes.
+ * Protects against malicious remote file paths that could escape the
+ * intended vault subfolder or git working directory.
+ */
+export function assertSafePath(path: string): void {
+	const segments = path.split("/");
+	if (segments.includes("..")) {
+		throw new Error(`Path traversal rejected: ${path}`);
+	}
+	if (path.startsWith("/")) {
+		throw new Error(`Absolute path rejected: ${path}`);
+	}
+}
+
 /** Returns true if `path` is inside `subfolder` (or if subfolder is empty). */
 export function isInSubfolder(path: string, subfolder: string): boolean {
 	if (!subfolder) return true;
@@ -87,6 +102,7 @@ export function remotePathToVaultPath(
 	vaultSubfolder: string,
 	dotDirMap: Record<string, string> = {},
 ): string {
+	assertSafePath(remotePath);
 	let relative = remotePath;
 	if (remoteSubfolder) {
 		const prefix = ensureTrailingSlash(remoteSubfolder);
@@ -122,6 +138,7 @@ export function vaultPathToRemotePath(
 	remoteSubfolder: string,
 	dotDirMap: Record<string, string> = {},
 ): string {
+	assertSafePath(vaultPath);
 	let relative = vaultPath;
 	if (vaultSubfolder) {
 		const prefix = ensureTrailingSlash(vaultSubfolder);
