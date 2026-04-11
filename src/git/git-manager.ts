@@ -17,8 +17,14 @@ import { isMarkdownFile, isInSubfolder } from "../utils/path";
 export interface GitManagerConfig {
 	/** Full HTTPS clone URL (e.g. https://gitlab.com/user/repo.git). */
 	remoteUrl: string;
-	/** Branch to operate on. */
+	/** Remote source branch to clone and fetch from (the "base" branch). */
 	branch: string;
+	/**
+	 * Branch that local commits are pushed to.
+	 * If empty or equal to `branch`, pushes go directly to `branch`.
+	 * Created from `branch` automatically if it doesn't exist on the remote.
+	 */
+	workingBranch?: string;
 	/** Personal Access Token for auth. */
 	token: string;
 	/** Shallow clone depth. */
@@ -58,6 +64,15 @@ export class GitManager {
 		if (config.token) {
 			this.onAuth = createAuthCallback(config.token);
 		}
+	}
+
+	/**
+	 * The branch used for commits and pushes.
+	 * Equals `workingBranch` if set and different from `branch`, otherwise `branch`.
+	 */
+	get effectiveBranch(): string {
+		const wb = this.config.workingBranch;
+		return wb && wb !== this.config.branch ? wb : this.config.branch;
 	}
 
 	// ── Repository lifecycle ────────────────────────────────
@@ -100,27 +115,112 @@ export class GitManager {
 		});
 	}
 
-	/** Fetch latest changes from remote (shallow). */
+	/** Fetch latest changes from remote (shallow). Tries the working branch first. */
 	async fetch(): Promise<void> {
-		await git.fetch({
-			fs: this.fs,
-			http,
-			dir: this.dir,
-			ref: this.config.branch,
-			singleBranch: true,
-			depth: this.config.depth,
-			onAuth: this.onAuth,
-			onAuthFailure: this.onAuthFailure,
-		});
+		const wb = this.effectiveBranch;
+		try {
+			await git.fetch({
+				fs: this.fs,
+				http,
+				dir: this.dir,
+				ref: wb,
+				singleBranch: true,
+				depth: this.config.depth,
+				onAuth: this.onAuth,
+				onAuthFailure: this.onAuthFailure,
+			});
+		} catch (err) {
+			// Working branch may not exist on remote yet — fall back to base branch
+			if (wb !== this.config.branch) {
+				await git.fetch({
+					fs: this.fs,
+					http,
+					dir: this.dir,
+					ref: this.config.branch,
+					singleBranch: true,
+					depth: this.config.depth,
+					onAuth: this.onAuth,
+					onAuthFailure: this.onAuthFailure,
+				});
+			} else {
+				throw err;
+			}
+		}
 	}
 
-	/** Push local commits to remote. */
+	/**
+	 * Ensure the working branch exists locally and is in sync with the remote.
+	 *
+	 * If the remote has the working branch, fast-forward the local copy to match.
+	 * If not, create a local branch from current HEAD.
+	 *
+	 * When a single-branch clone was used (singleBranch:true for the source
+	 * branch), the working branch's remote tracking ref may not exist locally
+	 * even if it exists on the server.  We therefore try a fetch before
+	 * concluding the branch doesn't exist on remote.
+	 */
+	async ensureWorkingBranch(): Promise<void> {
+		const wb = this.effectiveBranch;
+		if (wb === this.config.branch) return; // Same branch — nothing to do
+
+		const remoteRef = `refs/remotes/origin/${wb}`;
+		let remoteExists = false;
+
+		// First check if the remote tracking ref is already populated locally
+		try {
+			await git.resolveRef({ fs: this.fs, dir: this.dir, ref: remoteRef });
+			remoteExists = true;
+		} catch {
+			// Not in local refs — the clone may have been singleBranch for the
+			// source branch only.  Try fetching the working branch from remote.
+			try {
+				await git.fetch({
+					fs: this.fs,
+					http,
+					dir: this.dir,
+					ref: wb,
+					singleBranch: true,
+					depth: this.config.depth,
+					onAuth: this.onAuth,
+					onAuthFailure: this.onAuthFailure,
+				});
+				// If fetch succeeded the remote tracking ref is now populated
+				await git.resolveRef({ fs: this.fs, dir: this.dir, ref: remoteRef });
+				remoteExists = true;
+			} catch {
+				// Branch truly doesn't exist on remote — will be created on first push
+			}
+		}
+
+		const sha = remoteExists
+			? await git.resolveRef({ fs: this.fs, dir: this.dir, ref: remoteRef })
+			: await git.resolveRef({ fs: this.fs, dir: this.dir, ref: "HEAD" });
+
+		await git.writeRef({
+			fs: this.fs,
+			dir: this.dir,
+			ref: `refs/heads/${wb}`,
+			value: sha,
+			force: true,
+		});
+
+		// Checkout the working branch
+		try {
+			await git.checkout({ fs: this.fs, dir: this.dir, ref: wb, force: true });
+		} catch {
+			// Checkout may fail on a bare-ish tree — that's OK; we read via tree walk
+		}
+	}
+
+	/** Push local commits to the working branch on remote. */
 	async push(): Promise<void> {
+		const wb = this.effectiveBranch;
 		const result = await git.push({
 			fs: this.fs,
 			http,
 			dir: this.dir,
-			ref: this.config.branch,
+			ref: wb,
+			remoteRef: wb,
 			onAuth: this.onAuth,
 			onAuthFailure: this.onAuthFailure,
 		});
@@ -133,16 +233,38 @@ export class GitManager {
 	// ── Tree walking (read .md files without full checkout) ─
 
 	/**
+	 * Returns the best ref to use when reading "remote" state.
+	 *
+	 * Prefers `refs/remotes/origin/<effectiveBranch>` so that a locally-committed
+	 * but not-yet-pushed commit (or a failed push) does not pollute the "remote"
+	 * view returned by listMdFiles / readFileFromTree.
+	 *
+	 * Falls back to the local branch ref only when no remote tracking ref exists
+	 * yet (i.e., the working branch has never been pushed).
+	 */
+	private async remoteTreeRef(): Promise<string> {
+		const remoteRef = `refs/remotes/origin/${this.effectiveBranch}`;
+		try {
+			await git.resolveRef({ fs: this.fs, dir: this.dir, ref: remoteRef });
+			return remoteRef;
+		} catch {
+			// No remote tracking ref — branch has never been pushed; use local ref
+			return this.effectiveBranch;
+		}
+	}
+
+	/**
 	 * List all .md files in the given subfolder by walking the git tree.
 	 * Does NOT write files to the LightningFS working directory.
 	 */
 	async listMdFiles(subfolder?: string): Promise<GitFileEntry[]> {
 		const entries: GitFileEntry[] = [];
+		const treeRef = await this.remoteTreeRef();
 
 		await git.walk({
 			fs: this.fs,
 			dir: this.dir,
-			trees: [git.TREE({ ref: this.config.branch })],
+			trees: [git.TREE({ ref: treeRef })],
 			map: async (filepath, [entry]) => {
 				if (!entry) return undefined;
 				// Skip the root "." entry
@@ -169,7 +291,7 @@ export class GitManager {
 	 * Does NOT use the working directory.
 	 */
 	async readFileFromTree(filepath: string, ref?: string): Promise<string> {
-		const resolvedRef = ref ?? this.config.branch;
+		const resolvedRef = ref ?? await this.remoteTreeRef();
 
 		const { blob } = await git.readBlob({
 			fs: this.fs,
@@ -247,11 +369,12 @@ export class GitManager {
 		});
 	}
 
-	/** Create a commit with all staged changes. */
+	/** Create a commit with all staged changes on the working branch. */
 	async commit(message: string): Promise<string> {
 		const sha = await git.commit({
 			fs: this.fs,
 			dir: this.dir,
+			ref: this.effectiveBranch,
 			message,
 			author: {
 				name: this.config.authorName,
@@ -263,13 +386,58 @@ export class GitManager {
 
 	// ── Queries ─────────────────────────────────────────────
 
-	/** Get the SHA of the HEAD commit. */
+	/** Get the name of the currently checked-out branch, or null if detached HEAD. */
+	async getCurrentBranch(): Promise<string | null> {
+		return (await git.currentBranch({ fs: this.fs, dir: this.dir })) ?? null;
+	}
+
+	/**
+	 * Get the SHA of the HEAD commit as seen on the remote tracking branch.
+	 * Falls back to the local branch if no remote tracking ref exists yet.
+	 */
 	async getHeadSha(): Promise<string> {
+		const ref = await this.remoteTreeRef();
+		return git.resolveRef({ fs: this.fs, dir: this.dir, ref });
+	}
+
+	/**
+	 * Get the SHA of the most recent local commit on the working branch,
+	 * regardless of whether it has been pushed.
+	 * Used to snapshot state before committing so a failed push can be rolled back.
+	 */
+	async getLocalHeadSha(): Promise<string> {
 		return git.resolveRef({
 			fs: this.fs,
 			dir: this.dir,
-			ref: "HEAD",
+			ref: `refs/heads/${this.effectiveBranch}`,
 		});
+	}
+
+	/**
+	 * Reset the local working branch to the given commit SHA and force-checkout
+	 * the working tree to match.
+	 *
+	 * Called after a push failure to undo the local commit so that subsequent
+	 * calls to listMdFiles() / getRemoteFileList() do not see phantom content.
+	 */
+	async resetBranch(sha: string): Promise<void> {
+		await git.writeRef({
+			fs: this.fs,
+			dir: this.dir,
+			ref: `refs/heads/${this.effectiveBranch}`,
+			value: sha,
+			force: true,
+		});
+		try {
+			await git.checkout({
+				fs: this.fs,
+				dir: this.dir,
+				ref: this.effectiveBranch,
+				force: true,
+			});
+		} catch {
+			// Working tree may not be fully materialised in headless use — ignore
+		}
 	}
 
 	/** Get recent commit log entries. */
@@ -293,37 +461,42 @@ export class GitManager {
 	}
 
 	/**
-	 * Perform a fast-forward merge of the fetched remote branch.
-	 * isomorphic-git does not have a merge command, so we manually
-	 * update the local branch ref to point to the remote tracking ref.
+	 * Perform a fast-forward of the effective branch to its remote tracking ref.
+	 * Falls back to the base branch if the working branch doesn't have a remote yet.
 	 */
 	async fastForwardToRemote(): Promise<void> {
-		const remoteRef = `refs/remotes/origin/${this.config.branch}`;
-		const remoteSha = await git.resolveRef({
-			fs: this.fs,
-			dir: this.dir,
-			ref: remoteRef,
-		});
+		const wb = this.effectiveBranch;
+		const remoteRef = `refs/remotes/origin/${wb}`;
+
+		let remoteSha: string;
+		try {
+			remoteSha = await git.resolveRef({
+				fs: this.fs,
+				dir: this.dir,
+				ref: remoteRef,
+			});
+		} catch {
+			// Working branch not on remote — fall back to base branch ref
+			const baseRef = `refs/remotes/origin/${this.config.branch}`;
+			remoteSha = await git.resolveRef({
+				fs: this.fs,
+				dir: this.dir,
+				ref: baseRef,
+			});
+		}
 
 		await git.writeRef({
 			fs: this.fs,
 			dir: this.dir,
-			ref: `refs/heads/${this.config.branch}`,
+			ref: `refs/heads/${wb}`,
 			value: remoteSha,
 			force: true,
 		});
 
-		// Also update HEAD if it points to this branch
 		try {
-			await git.checkout({
-				fs: this.fs,
-				dir: this.dir,
-				ref: this.config.branch,
-				force: true,
-			});
+			await git.checkout({ fs: this.fs, dir: this.dir, ref: wb, force: true });
 		} catch {
 			// checkout may fail if there's no working tree — that's ok
-			// since we read from the tree directly
 		}
 	}
 }

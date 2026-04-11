@@ -83,6 +83,36 @@ export class GitLabClient {
 		);
 	}
 
+	/** Check whether a branch exists. Returns false instead of throwing on 404. */
+	async branchExists(branch: string): Promise<boolean> {
+		try {
+			await this.get<GitLabBranch>(
+				`${GITLAB_API_V4}/projects/${this.projectId}/repository/branches/${encodeURIComponent(branch)}`,
+			);
+			return true;
+		} catch (err) {
+			if (err instanceof GitLabApiError && err.statusCode === 404) return false;
+			throw err;
+		}
+	}
+
+	/**
+	 * Create a new branch from the given ref.
+	 * No-ops (returns silently) if the branch already exists.
+	 */
+	async createBranch(branch: string, ref: string): Promise<void> {
+		try {
+			await this.post<GitLabBranch>(
+				`${GITLAB_API_V4}/projects/${this.projectId}/repository/branches`,
+				{ branch, ref },
+			);
+		} catch (err) {
+			// GitLab returns 400 if the branch already exists
+			if (err instanceof GitLabApiError && err.statusCode === 400) return;
+			throw err;
+		}
+	}
+
 	// ── Repository tree ─────────────────────────────────────
 
 	/**
@@ -226,6 +256,7 @@ export class GitLabClient {
 				"PRIVATE-TOKEN": this.token,
 				"Content-Type": "application/json",
 			},
+			throw: false,
 		};
 
 		if (body) {

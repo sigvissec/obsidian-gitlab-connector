@@ -5,7 +5,7 @@
  * conflict detector, and UI modals into a coherent pull/push/full-sync flow.
  */
 
-import type { App, Vault, TFile } from "obsidian";
+import type { App, Vault } from "obsidian";
 import { normalizePath, Notice } from "obsidian";
 import type { SyncBackend } from "./sync-backend";
 import { StateManager, FileSyncState } from "./state-manager";
@@ -17,7 +17,7 @@ import {
 	vaultPathToRemotePath,
 	ensureTrailingSlash,
 } from "../utils/path";
-import { getVaultMdFiles } from "./file-filter";
+import { getAllVaultMdFilePaths } from "./file-filter";
 import type {
 	FileChange,
 	ConflictInfo,
@@ -47,18 +47,31 @@ export class SyncEngine {
 	private stateManager: StateManager;
 	private settings: GitLabConnectorSettings;
 	private syncing = false;
+	private saveFn: () => Promise<void>;
 
 	constructor(
 		app: App,
 		backend: SyncBackend,
 		stateManager: StateManager,
 		settings: GitLabConnectorSettings,
+		saveSettings: () => Promise<void> = async () => {},
 	) {
 		this.app = app;
 		this.vault = app.vault;
 		this.backend = backend;
 		this.stateManager = stateManager;
 		this.settings = settings;
+		this.saveFn = saveSettings;
+	}
+
+	/** Effective dot-dir map: populated map when remapping is on, empty otherwise. */
+	private get effectiveDotDirMap(): Record<string, string> {
+		return this.settings.remapHiddenDirs ? this.settings.dotDirMap : {};
+	}
+
+	/** Expose the active backend (e.g., for settings tab status display). */
+	getBackend(): SyncBackend {
+		return this.backend;
 	}
 
 	/** Replace the active backend (e.g., when user switches modes). */
@@ -177,6 +190,10 @@ export class SyncEngine {
 			this.settings.remoteSubfolder || undefined,
 		);
 
+		// Update the dot-dir map before any path translation so new hidden
+		// directories discovered on remote are mapped immediately.
+		await this.updateDotDirMap(remoteFiles.map((rf) => rf.path));
+
 		const changes = await detectChanges(
 			this.vault,
 			this.stateManager,
@@ -184,6 +201,7 @@ export class SyncEngine {
 			(path) => this.backend.getRemoteFileContent(path),
 			this.settings.vaultSubfolder,
 			this.settings.remoteSubfolder,
+			this.effectiveDotDirMap,
 		);
 
 		// 1. Apply remote-only changes (auto-update vault)
@@ -192,35 +210,24 @@ export class SyncEngine {
 				continue; // Handle deletions separately below
 			}
 
-			const content = await this.backend.getRemoteFileContent(change.path);
-			const vaultPath = remotePathToVaultPath(
-				change.path,
-				this.settings.remoteSubfolder,
-				this.settings.vaultSubfolder,
-			);
+			try {
+				const content = await this.backend.getRemoteFileContent(change.path);
+				const vaultPath = remotePathToVaultPath(
+					change.path,
+					this.settings.remoteSubfolder,
+					this.settings.vaultSubfolder,
+					this.effectiveDotDirMap,
+				);
 
-			await this.ensureVaultFolder(vaultPath);
+				await this.writeVaultFile(vaultPath, content);
 
-			if (change.type === ChangeType.CREATED) {
-				const existing = this.vault.getFileByPath(vaultPath);
-				if (existing) {
-					await this.vault.modify(existing, content);
-				} else {
-					await this.vault.create(vaultPath, content);
-				}
-			} else {
-				const file = this.vault.getFileByPath(vaultPath);
-				if (file) {
-					await this.vault.modify(file, content);
-				} else {
-					await this.vault.create(vaultPath, content);
-				}
+				// Update sync state only after a confirmed successful write
+				const remoteSha =
+					remoteFiles.find((rf) => rf.path === change.path)?.sha ?? "";
+				await this.updateFileState(change.path, content, remoteSha);
+			} catch (err) {
+				console.warn(`[GitLab Connector] Skipping unwritable remote file ${change.path}:`, err);
 			}
-
-			// Update sync state for this file
-			const remoteSha =
-				remoteFiles.find((rf) => rf.path === change.path)?.sha ?? "";
-			await this.updateFileState(change.path, content, remoteSha);
 		}
 
 		// 2. Handle remote deletions (ask user)
@@ -237,10 +244,15 @@ export class SyncEngine {
 						choice.path,
 						this.settings.remoteSubfolder,
 						this.settings.vaultSubfolder,
+						this.effectiveDotDirMap,
 					);
 					const file = this.vault.getFileByPath(vaultPath);
 					if (file) {
 						await this.vault.trash(file, true);
+					} else {
+						try {
+							await this.vault.adapter.remove(normalizePath(vaultPath));
+						} catch { /* already gone */ }
 					}
 				}
 				// Either way, remove from sync state
@@ -257,6 +269,7 @@ export class SyncEngine {
 				this.stateManager,
 				this.settings.vaultSubfolder,
 				this.settings.remoteSubfolder,
+				this.effectiveDotDirMap,
 			);
 
 			// Auto-resolve auto-mergeable conflicts silently
@@ -274,10 +287,13 @@ export class SyncEngine {
 						am.path,
 						this.settings.remoteSubfolder,
 						this.settings.vaultSubfolder,
+						this.effectiveDotDirMap,
 					);
 					const file = this.vault.getFileByPath(vaultPath);
 					if (file) {
 						await this.vault.modify(file, am.mergedContent);
+					} else {
+						await this.vault.adapter.write(normalizePath(vaultPath), am.mergedContent);
 					}
 					const remoteSha =
 						remoteFiles.find((rf) => rf.path === am.path)?.sha ?? "";
@@ -320,9 +336,15 @@ export class SyncEngine {
 			(path) => this.backend.getRemoteFileContent(path),
 			this.settings.vaultSubfolder,
 			this.settings.remoteSubfolder,
+			this.effectiveDotDirMap,
 		);
 
 		if (changes.localChanges.length === 0) {
+			if (changes.bothChanged.length > 0) {
+				new Notice(
+					`${PLUGIN_DISPLAY_NAME}: ${changes.bothChanged.length} file(s) have remote conflicts — pull first to resolve them.`,
+				);
+			}
 			return; // Nothing to push
 		}
 
@@ -338,16 +360,24 @@ export class SyncEngine {
 				change.path,
 				this.settings.remoteSubfolder,
 				this.settings.vaultSubfolder,
+				this.effectiveDotDirMap,
 			);
 			const file = this.vault.getFileByPath(vaultPath);
+			let content: string;
 			if (file) {
-				const content = await this.vault.read(file);
-				pushChanges.push({
-					path: change.path,
-					type: change.type,
-					content,
-				});
+				content = await this.vault.read(file);
+			} else {
+				try {
+					content = await this.vault.adapter.read(normalizePath(vaultPath));
+				} catch {
+					continue; // File genuinely missing — skip
+				}
 			}
+			pushChanges.push({
+				path: change.path,
+				type: change.type,
+				content,
+			});
 		}
 
 		if (pushChanges.length === 0) return;
@@ -369,7 +399,14 @@ export class SyncEngine {
 			throw new Error(`Push failed: ${result.error}`);
 		}
 
-		// Update sync state for pushed files
+		// Re-fetch the remote file list to get current blob OIDs for each pushed file.
+		// Storing the commit SHA here instead would break change detection on the next
+		// sync because getRemoteFileList() returns blob OIDs, not commit SHAs.
+		const updatedRemote = await this.backend.getRemoteFileList(
+			this.settings.remoteSubfolder || undefined,
+		);
+		const updatedByPath = new Map(updatedRemote.map((rf) => [rf.path, rf]));
+
 		for (const change of pushChanges) {
 			if (change.type === ChangeType.DELETED) {
 				this.stateManager.removeFileState(change.path);
@@ -378,7 +415,7 @@ export class SyncEngine {
 				this.stateManager.updateFileState(change.path, {
 					contentHash: hash,
 					baseContent: change.content,
-					remoteSha: result.commitSha ?? "",
+					remoteSha: updatedByPath.get(change.path)?.sha ?? "",
 					lastSynced: Date.now(),
 				});
 			}
@@ -402,6 +439,7 @@ export class SyncEngine {
 			(path) => this.backend.getRemoteFileContent(path),
 			this.settings.vaultSubfolder,
 			this.settings.remoteSubfolder,
+			this.effectiveDotDirMap,
 		);
 
 		if (changes.localChanges.length === 0) {
@@ -420,12 +458,20 @@ export class SyncEngine {
 				change.path,
 				this.settings.remoteSubfolder,
 				this.settings.vaultSubfolder,
+				this.effectiveDotDirMap,
 			);
 			const file = this.vault.getFileByPath(vaultPath);
+			let content: string;
 			if (file) {
-				const content = await this.vault.read(file);
-				allChanges.push({ path: change.path, type: change.type, content });
+				content = await this.vault.read(file);
+			} else {
+				try {
+					content = await this.vault.adapter.read(normalizePath(vaultPath));
+				} catch {
+					continue; // File genuinely missing — skip
+				}
 			}
+			allChanges.push({ path: change.path, type: change.type, content });
 		}
 
 		if (allChanges.length === 0) return;
@@ -453,7 +499,12 @@ export class SyncEngine {
 			throw new Error(`Push failed: ${result.error}`);
 		}
 
-		// Update state for selected files only
+		// Re-fetch remote file list to get current blob OIDs (not commit SHA)
+		const updatedRemote = await this.backend.getRemoteFileList(
+			this.settings.remoteSubfolder || undefined,
+		);
+		const updatedByPath = new Map(updatedRemote.map((rf) => [rf.path, rf]));
+
 		for (const change of selection.changes) {
 			if (change.type === ChangeType.DELETED) {
 				this.stateManager.removeFileState(change.path);
@@ -462,7 +513,7 @@ export class SyncEngine {
 				this.stateManager.updateFileState(change.path, {
 					contentHash: hash,
 					baseContent: change.content,
-					remoteSha: result.commitSha ?? "",
+					remoteSha: updatedByPath.get(change.path)?.sha ?? "",
 					lastSynced: Date.now(),
 				});
 			}
@@ -481,7 +532,7 @@ export class SyncEngine {
 		const remoteFiles = await this.backend.getRemoteFileList(
 			this.settings.remoteSubfolder || undefined,
 		);
-		const localFiles = getVaultMdFiles(
+		const localFiles = await getAllVaultMdFilePaths(
 			this.vault,
 			this.settings.vaultSubfolder,
 		);
@@ -516,23 +567,24 @@ export class SyncEngine {
 	private async initialPull(
 		remoteFiles: { path: string; sha: string }[],
 	): Promise<void> {
+		await this.updateDotDirMap(remoteFiles.map((rf) => rf.path));
+
 		for (const rf of remoteFiles) {
-			const content = await this.backend.getRemoteFileContent(rf.path);
-			const vaultPath = remotePathToVaultPath(
-				rf.path,
-				this.settings.remoteSubfolder,
-				this.settings.vaultSubfolder,
-			);
+			try {
+				const content = await this.backend.getRemoteFileContent(rf.path);
+				const vaultPath = remotePathToVaultPath(
+					rf.path,
+					this.settings.remoteSubfolder,
+					this.settings.vaultSubfolder,
+					this.effectiveDotDirMap,
+				);
 
-			await this.ensureVaultFolder(vaultPath);
-			const existing = this.vault.getFileByPath(vaultPath);
-			if (existing) {
-				await this.vault.modify(existing, content);
-			} else {
-				await this.vault.create(vaultPath, content);
+				await this.writeVaultFile(vaultPath, content);
+				// Update sync state only after a confirmed successful write
+				await this.updateFileState(rf.path, content, rf.sha);
+			} catch (err) {
+				console.warn(`[GitLab Connector] Skipping unwritable remote file ${rf.path}:`, err);
 			}
-
-			await this.updateFileState(rf.path, content, rf.sha);
 		}
 
 		try {
@@ -545,14 +597,15 @@ export class SyncEngine {
 		await this.stateManager.save();
 	}
 
-	private async initialPush(localFiles: TFile[]): Promise<void> {
+	private async initialPush(localFiles: string[]): Promise<void> {
 		const changes: FileChange[] = [];
-		for (const file of localFiles) {
-			const content = await this.vault.read(file);
+		for (const filePath of localFiles) {
+			const content = await this.vault.adapter.read(normalizePath(filePath));
 			const remotePath = vaultPathToRemotePath(
-				file.path,
+				filePath,
 				this.settings.vaultSubfolder,
 				this.settings.remoteSubfolder,
+				this.effectiveDotDirMap,
 			);
 			changes.push({
 				path: remotePath,
@@ -575,14 +628,19 @@ export class SyncEngine {
 			throw new Error(`Initial push failed: ${result.error}`);
 		}
 
-		// Update sync state
+		// Re-fetch remote file list to get current blob OIDs (not commit SHA)
+		const updatedRemote = await this.backend.getRemoteFileList(
+			this.settings.remoteSubfolder || undefined,
+		);
+		const updatedByPath = new Map(updatedRemote.map((rf) => [rf.path, rf]));
+
 		for (const change of changes) {
 			if (change.content) {
 				const hash = await sha256(change.content);
 				this.stateManager.updateFileState(change.path, {
 					contentHash: hash,
 					baseContent: change.content,
-					remoteSha: result.commitSha ?? "",
+					remoteSha: updatedByPath.get(change.path)?.sha ?? "",
 					lastSynced: Date.now(),
 				});
 			}
@@ -606,14 +664,12 @@ export class SyncEngine {
 				res.path,
 				this.settings.remoteSubfolder,
 				this.settings.vaultSubfolder,
+				this.effectiveDotDirMap,
 			);
 			const file = this.vault.getFileByPath(vaultPath);
 
-			if (res.content !== undefined && file) {
-				await this.vault.modify(file, res.content);
-			} else if (res.content !== undefined) {
-				await this.ensureVaultFolder(vaultPath);
-				await this.vault.create(vaultPath, res.content);
+			if (res.content !== undefined) {
+				await this.writeVaultFile(vaultPath, res.content);
 			}
 
 			// Update sync state if resolved (not for EDIT_MANUALLY — user will
@@ -643,22 +699,119 @@ export class SyncEngine {
 		});
 	}
 
+	/**
+	 * Write a file to the vault, creating the parent folder if needed.
+	 * Handles the race condition where the folder or file already exists
+	 * but Obsidian's index hasn't caught up yet.
+	 * After a successful write, deletes any pre-remap orphan at the old
+	 * dot-prefixed path (e.g. .github/foo.md when writing _github/foo.md).
+	 */
+	private async writeVaultFile(vaultPath: string, content: string): Promise<void> {
+		await this.ensureVaultFolder(vaultPath);
+		const normalized = normalizePath(vaultPath);
+		const existing = this.vault.getFileByPath(vaultPath);
+		if (existing) {
+			await this.vault.modify(existing, content);
+			await this.deleteOrphanDotCounterpart(vaultPath);
+			return;
+		}
+		try {
+			await this.vault.create(vaultPath, content);
+		} catch {
+			// File may have appeared between getFileByPath and create (race condition),
+			// or the path is inside a hidden directory Obsidian won't index.
+			const now = this.vault.getFileByPath(vaultPath);
+			if (now) {
+				await this.vault.modify(now, content);
+			} else {
+				// Hidden directory (e.g. _github/, _agents/) — write directly via adapter
+				await this.vault.adapter.write(normalized, content);
+			}
+		}
+		await this.deleteOrphanDotCounterpart(vaultPath);
+	}
+
+	/**
+	 * Scan the remote paths for dot-prefixed directory segments and add any
+	 * new ones to settings.dotDirMap (e.g. ".github" → "_github").
+	 * Persists settings only when new entries are discovered.
+	 */
+	private async updateDotDirMap(remotePaths: string[]): Promise<void> {
+		if (!this.settings.remapHiddenDirs) return;
+		let changed = false;
+		for (const rp of remotePaths) {
+			const segments = rp.split("/");
+			for (let i = 0; i < segments.length - 1; i++) {
+				const seg = segments[i];
+				if (seg.startsWith(".") && !this.settings.dotDirMap[seg]) {
+					this.settings.dotDirMap[seg] = "_" + seg.slice(1);
+					changed = true;
+				}
+			}
+		}
+		if (changed) await this.saveFn();
+	}
+
+	/**
+	 * After writing a remapped vault file (e.g. _github/foo.md), delete the
+	 * old dot-prefixed counterpart (.github/foo.md) from disk if it still
+	 * exists from before the remapping feature was enabled.
+	 * Only acts when remapHiddenDirs is on and a directory segment in the
+	 * path is a known mapped vault name.
+	 */
+	private async deleteOrphanDotCounterpart(vaultPath: string): Promise<void> {
+		if (!this.settings.remapHiddenDirs) return;
+		const map = this.settings.dotDirMap;
+		if (Object.keys(map).length === 0) return;
+
+		// Build reverse: "_github" → ".github"
+		const reverse: Record<string, string> = {};
+		for (const [remote, vault] of Object.entries(map)) reverse[vault] = remote;
+
+		const parts = vaultPath.split("/");
+		const dotParts = parts.map((p, i) =>
+			i < parts.length - 1 && reverse[p] ? reverse[p] : p,
+		);
+		if (dotParts.join("/") === parts.join("/")) return; // nothing remapped in this path
+
+		const dotPath = normalizePath(dotParts.join("/"));
+		try {
+			if (await this.vault.adapter.exists(dotPath)) {
+				await this.vault.adapter.remove(dotPath);
+			}
+		} catch {
+			// Non-critical — the orphan file simply stays on disk
+		}
+	}
+
 	private async ensureVaultFolder(filePath: string): Promise<void> {
 		const parts = filePath.split("/");
-		if (parts.length <= 1) return; // No folder needed
+		if (parts.length <= 1) return; // Root file — no folder needed
 
-		const folderPath = parts.slice(0, -1).join("/");
-		const normalized = normalizePath(folderPath);
-		const existing = this.vault.getFolderByPath(normalized);
-		if (!existing) {
+		// Create each directory component individually so every level is added to
+		// Obsidian's vault index before we attempt to create the next level.
+		//
+		// Attempting to create the full path in one shot (e.g.
+		// "gitlab-notes/.gitlab/issue_templates") fails when intermediate directories
+		// don't exist, because vault.createFolder() does not create missing parents.
+		// Doing it level-by-level means vault.create() can succeed for the file
+		// (parent is indexed) so the file appears in the Obsidian explorer immediately,
+		// even for directories that start with "." such as .gitlab/ or .github/.
+		let current = "";
+		for (let i = 0; i < parts.length - 1; i++) {
+			current = current ? `${current}/${parts[i]}` : parts[i];
+			const normalized = normalizePath(current);
+			if (this.vault.getFolderByPath(normalized)) continue; // Already indexed
 			try {
 				await this.vault.createFolder(normalized);
-			} catch (err) {
-				// Folder may have been created between the existence check and this
-				// call (e.g. by Obsidian's file indexer or a parallel operation).
-				// Re-throw only if it is a genuine error.
-				if (this.vault.getFolderByPath(normalized) === null) {
-					throw err;
+			} catch {
+				// Folder already exists on disk but not yet indexed, or vault.createFolder
+				// rejected the name. Write it via the adapter so the chain exists on disk
+				// even if Obsidian's index is not updated (watcher will catch it later).
+				try {
+					await this.vault.adapter.mkdir(normalized);
+				} catch {
+					// Already exists on disk — ignore
 				}
 			}
 		}

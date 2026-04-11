@@ -5,8 +5,11 @@
 /** Default GitLab instance URL. */
 export const DEFAULT_GITLAB_URL = "https://gitlab.com";
 
-/** Default git branch name. */
+/** Default git branch name (the remote source branch to read from). */
 export const DEFAULT_BRANCH = "main";
+
+/** Default working branch where local changes are pushed. */
+export const DEFAULT_WORKING_BRANCH = "obsidian-plugin";
 
 /** Default sync interval in minutes (when auto-timer is enabled). */
 export const DEFAULT_SYNC_INTERVAL_MINUTES = 5;

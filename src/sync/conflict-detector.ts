@@ -31,6 +31,7 @@ export async function classifyConflicts(
 	stateManager: StateManager,
 	vaultSubfolder: string,
 	remoteSubfolder: string,
+	dotDirMap: Record<string, string> = {},
 ): Promise<ConflictInfo[]> {
 	const conflicts: ConflictInfo[] = [];
 
@@ -39,6 +40,7 @@ export async function classifyConflicts(
 			remotePath,
 			remoteSubfolder,
 			vaultSubfolder,
+			dotDirMap,
 		);
 
 		// Base content: stored in sync state from last sync

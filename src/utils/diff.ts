@@ -3,7 +3,10 @@
  */
 
 import { structuredPatch, createPatch, applyPatch } from "diff";
-import type { ParsedDiff, Hunk } from "diff";
+import type { StructuredPatch, StructuredPatchHunk } from "diff";
+// Aliases for backward compatibility with the rest of the codebase
+type ParsedDiff = StructuredPatch;
+type Hunk = StructuredPatchHunk;
 import type { MergeResult } from "../types";
 
 /**
@@ -144,4 +147,4 @@ function escapeHtml(text: string): string {
 		.replace(/"/g, "&quot;");
 }
 
-export type { ParsedDiff, Hunk };
+export type { ParsedDiff, Hunk, StructuredPatch, StructuredPatchHunk };

@@ -118,3 +118,14 @@ export class StateManager {
 		this.state = { ...EMPTY_STATE, files: {} };
 	}
 }
+
+/**
+ * Wipe all persisted sync state for both backends from data.json.
+ * Used during re-initialization so the first-sync modal appears again.
+ */
+export async function clearAllSyncState(plugin: Plugin): Promise<void> {
+	const allData = (await plugin.loadData()) ?? {};
+	delete allData[STATE_KEY_GIT];
+	delete allData[STATE_KEY_API];
+	await plugin.saveData(allData);
+}

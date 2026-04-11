@@ -26,6 +26,10 @@ import { GitLabClient, GitLabApiError } from "../api/gitlab-client";
 export class GitLabConnectorSettingsTab extends PluginSettingTab {
 	plugin: GitLabConnectorPlugin;
 
+	/** Branches fetched from GitLab for the dropdown/datalist. */
+	private cachedBranches: string[] = [];
+	private fetchingBranches = false;
+
 	constructor(app: App, plugin: GitLabConnectorPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -92,10 +96,46 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 					}),
 			);
 
+		// ── Branches ────────────────────────────────────────
+		containerEl.createEl("h2", { text: "Branches" });
+
+		// Fetch branches action
 		new Setting(containerEl)
+			.setName("Load branches from GitLab")
+			.setDesc(
+				"Fetch available branches to enable dropdown selection. Requires URL, token, and project path to be configured.",
+			)
+			.addButton((btn) => {
+				btn
+					.setButtonText(this.fetchingBranches ? "Loading…" : "Fetch branches")
+					.setDisabled(this.fetchingBranches)
+					.onClick(async () => {
+						await this.fetchBranches();
+					});
+			});
+
+		// Branch (source) — dropdown when branches are loaded, text otherwise
+		const branchSetting = new Setting(containerEl)
 			.setName("Branch")
-			.setDesc("The branch to sync with.")
-			.addText((text) =>
+			.setDesc(
+				"Remote branch to read from when pulling. Acts as the base when creating the working branch.",
+			);
+
+		if (this.cachedBranches.length > 0) {
+			branchSetting.addDropdown((dd) => {
+				const options = [...this.cachedBranches];
+				// Ensure current value is always present even if not on remote
+				if (!options.includes(this.plugin.settings.branch)) {
+					options.unshift(this.plugin.settings.branch);
+				}
+				for (const b of options) dd.addOption(b, b);
+				dd.setValue(this.plugin.settings.branch).onChange(async (value) => {
+					this.plugin.settings.branch = value;
+					await this.plugin.saveSettings();
+				});
+			});
+		} else {
+			branchSetting.addText((text) =>
 				text
 					.setPlaceholder("main")
 					.setValue(this.plugin.settings.branch)
@@ -104,6 +144,52 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+		}
+
+		// Working branch — text input with branch-list autocomplete when loaded
+		const workingBranchSetting = new Setting(containerEl)
+			.setName("Working branch")
+			.setDesc(
+				"Branch that local changes are pushed to. Created automatically from Branch if it does not exist. Set to the same value as Branch to push directly.",
+			);
+
+		workingBranchSetting.addText((text) => {
+			// Attach a <datalist> for autocomplete when branches are available
+			if (this.cachedBranches.length > 0) {
+				const listId = "glc-branch-datalist";
+				const datalist = text.inputEl.doc.createElement("datalist");
+				datalist.id = listId;
+				for (const b of this.cachedBranches) {
+					const opt = datalist.createEl("option");
+					opt.value = b;
+				}
+				// Insert next to the input so it's cleaned up with containerEl
+				text.inputEl.after(datalist);
+				text.inputEl.setAttribute("list", listId);
+			}
+			text
+				.setPlaceholder("obsidian-plugin")
+				.setValue(this.plugin.settings.workingBranch)
+				.onChange(async (value) => {
+					this.plugin.settings.workingBranch = value.trim();
+					await this.plugin.saveSettings();
+				});
+		});
+
+		// Show the currently checked-out local branch
+		const localBranchSetting = new Setting(containerEl)
+			.setName("Currently checked out")
+			.setDesc("Reading…");
+
+		this.plugin.getLocalBranch().then((branch) => {
+			if (!localBranchSetting.settingEl.isConnected) return; // tab closed
+			localBranchSetting.setDesc(
+				branch ?? "Not initialized — run Initialize Connection first",
+			);
+		}).catch(() => {
+			if (!localBranchSetting.settingEl.isConnected) return;
+			localBranchSetting.setDesc("Not available");
+		});
 
 		// ── Sync scope ──────────────────────────────────────
 		containerEl.createEl("h2", { text: "Sync Scope" });
@@ -138,13 +224,70 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(containerEl)
+			.setName("Show hidden directories")
+			.setDesc(
+				"Remap dot-prefixed remote directories (.github/, .agents/, …) to " +
+				"underscore-prefixed names (_github/, _agents/, …) so Obsidian's " +
+				"file explorer shows them. The mapping is built automatically on the " +
+				"first pull that discovers each hidden directory. Push transparently " +
+				"reverses the rename. Disable if your remote has directories that " +
+				"intentionally start with an underscore and should not be remapped.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.remapHiddenDirs)
+					.onChange(async (value) => {
+						this.plugin.settings.remapHiddenDirs = value;
+						await this.plugin.saveSettings();
+						this.display();
+					}),
+			);
+
+		const dotDirMap = this.plugin.settings.dotDirMap;
+		if (
+			this.plugin.settings.remapHiddenDirs &&
+			Object.keys(dotDirMap).length > 0
+		) {
+			const mapSetting = new Setting(containerEl)
+				.setName("Discovered directory mappings")
+				.setDesc(
+					"Remote → vault directory name substitutions discovered during pulls.",
+				);
+			const list = mapSetting.settingEl.createDiv({
+				cls: "glc-dir-map-list",
+			});
+			for (const [remote, vault] of Object.entries(dotDirMap)) {
+				list.createDiv({
+					cls: "glc-dir-map-entry",
+					text: `${remote}/ → ${vault}/`,
+				});
+			}
+
+			new Setting(containerEl)
+				.setName("Clear directory mapping")
+				.setDesc(
+					"Remove all entries. The map will be rebuilt automatically on the next pull.",
+				)
+				.addButton((btn) =>
+					btn
+						.setButtonText("Clear")
+						.setWarning()
+						.onClick(async () => {
+							this.plugin.settings.dotDirMap = {};
+							await this.plugin.saveSettings();
+							this.display();
+						}),
+				);
+		}
+
 		// ── Sync behaviour ──────────────────────────────────
 		containerEl.createEl("h2", { text: "Sync Behaviour" });
 
 		new Setting(containerEl)
 			.setName("Sync mode")
 			.setDesc(
-				"isomorphic-git: full git operations, supports offline commits. REST API: lightweight, requires network for every operation.",
+				"isomorphic-git: full git operations, supports offline commits (not recommended on mobile — clones the entire repo into device storage). REST API: lightweight, stateless, recommended for mobile and Android.",
 			)
 			.addDropdown((dd) =>
 				dd
@@ -265,6 +408,35 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
+
+	// ── Private helpers ─────────────────────────────────────
+
+	private async fetchBranches(): Promise<void> {
+		const { gitlabUrl, projectPath } = this.plugin.settings;
+		const token = this.plugin.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "";
+
+		if (!gitlabUrl || !token || !projectPath) {
+			new Notice(
+				`${PLUGIN_DISPLAY_NAME}: Please configure GitLab URL, Personal Access Token, and Project Path first.`,
+			);
+			return;
+		}
+
+		this.fetchingBranches = true;
+		this.display();
+
+		try {
+			const client = new GitLabClient(gitlabUrl, token, projectPath);
+			const branches = await client.listBranches();
+			this.cachedBranches = branches.map((b) => b.name).sort();
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			new Notice(`${PLUGIN_DISPLAY_NAME}: Failed to fetch branches — ${msg}`);
+		} finally {
+			this.fetchingBranches = false;
+			this.display();
+		}
 	}
 
 	private async validateConnection(): Promise<void> {

@@ -27,9 +27,12 @@ export class GitSyncBackend implements SyncBackend {
 		const cloned = await this.git.isCloned();
 		if (!cloned) {
 			await this.git.clone(onProgress);
+			// Create or checkout the working branch after cloning the base branch
+			await this.git.ensureWorkingBranch();
 		} else {
 			await this.git.fetch();
 			await this.git.fastForwardToRemote();
+			await this.git.ensureWorkingBranch();
 		}
 	}
 
@@ -56,6 +59,18 @@ export class GitSyncBackend implements SyncBackend {
 		_authorName: string,
 		_authorEmail: string,
 	): Promise<PushResult> {
+		// Snapshot the local branch HEAD before creating a commit so we can roll
+		// back if the subsequent push fails.  A failed push leaves a dangling
+		// local commit that would otherwise corrupt the "remote" view returned by
+		// getRemoteFileList() (which reads from the remote tracking ref, but the
+		// local ref has advanced).
+		let prePushSha: string | null = null;
+		try {
+			prePushSha = await this.git.getLocalHeadSha();
+		} catch {
+			// Brand-new branch with no commits yet — nothing to snapshot
+		}
+
 		try {
 			// Write each changed file to the LightningFS working directory
 			// and stage it for commit
@@ -75,6 +90,16 @@ export class GitSyncBackend implements SyncBackend {
 
 			return { success: true, commitSha: sha };
 		} catch (err) {
+			// Push failed — roll back the local commit so the next call to
+			// getRemoteFileList() does not see the phantom committed content.
+			if (prePushSha) {
+				try {
+					await this.git.resetBranch(prePushSha);
+				} catch {
+					// Best-effort; if reset also fails we at least report the push error
+				}
+			}
+
 			const message = err instanceof Error ? err.message : String(err);
 			const isConflict =
 				message.includes("not fast-forward") ||

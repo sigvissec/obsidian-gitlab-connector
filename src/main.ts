@@ -6,7 +6,8 @@
  * Fallback backend: GitLab REST API (lightweight, network-required).
  */
 
-import { Notice, Plugin } from "obsidian";
+import { Menu, Notice, Plugin } from "obsidian";
+import { GitLabClient } from "./api/gitlab-client";
 import type { GitLabConnectorSettings } from "./settings/settings";
 import { DEFAULT_SETTINGS } from "./settings/settings";
 import { GitLabConnectorSettingsTab } from "./settings/settings-tab";
@@ -19,7 +20,7 @@ import {
 
 // Sync layer
 import { SyncEngine } from "./sync/sync-engine";
-import { StateManager } from "./sync/state-manager";
+import { StateManager, clearAllSyncState } from "./sync/state-manager";
 import type { SyncBackend } from "./sync/sync-backend";
 import { GitSyncBackend } from "./sync/git-sync-backend";
 import { ApiSyncBackend } from "./sync/api-sync-backend";
@@ -38,6 +39,8 @@ export default class GitLabConnectorPlugin extends Plugin {
 	private autoSyncInterval: number | null = null;
 	private fileChangeDebounceTimer: number | null = null;
 	private initialized = false;
+	/** Branch list fetched from GitLab for the status-bar branch picker menu. */
+	private cachedBranches: string[] = [];
 
 	// ── Lifecycle ────────────────────────────────────────────
 
@@ -49,6 +52,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 		// Status display
 		this.statusDisplay = new SyncStatusDisplay(this);
+		this.statusDisplay.setClickHandler((evt) => this.showBranchMenu(evt));
 
 		// Commands
 		this.addCommand({
@@ -81,9 +85,35 @@ export default class GitLabConnectorPlugin extends Plugin {
 			callback: () => this.executeInit(),
 		});
 
-		// Ribbon icon — triggers full sync
-		this.addRibbonIcon("git-branch", `${PLUGIN_DISPLAY_NAME}: Sync`, () => {
-			this.executeFullSync();
+		// Ribbon icon — opens a menu with all sync operations
+		this.addRibbonIcon("git-branch", PLUGIN_DISPLAY_NAME, (evt: MouseEvent) => {
+			const menu = new Menu();
+			menu.addItem((item) =>
+				item.setTitle("Pull").setIcon("download").onClick(() => this.executePull()),
+			);
+			menu.addItem((item) =>
+				item.setTitle("Push").setIcon("upload").onClick(() => this.executePush()),
+			);
+			menu.addItem((item) =>
+				item.setTitle("Full Sync").setIcon("refresh-cw").onClick(() => this.executeFullSync()),
+			);
+			menu.addItem((item) =>
+				item
+					.setTitle("Commit & Push Selected Files")
+					.setIcon("git-commit")
+					.onClick(() => this.executeCommitAndPush()),
+			);
+			menu.addItem((item) =>
+				item
+					.setTitle("Switch Branch")
+					.setIcon("git-branch-plus")
+					.onClick((evt) => this.showBranchMenu(evt as MouseEvent)),
+			);
+			menu.addSeparator();
+			menu.addItem((item) =>
+				item.setTitle("Re-initialize").setIcon("rotate-ccw").onClick(() => this.executeInit()),
+			);
+			menu.showAtMouseEvent(evt);
 		});
 	}
 
@@ -171,6 +201,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 				backend,
 				this.stateManager,
 				this.settings,
+				() => this.saveSettings(),
 			);
 
 			// Initialise backend (may trigger clone / first-sync modal)
@@ -183,6 +214,9 @@ export default class GitLabConnectorPlugin extends Plugin {
 			this.initialized = true;
 			this.setupAutoSync();
 			this.statusDisplay?.update("success", "Connected");
+			// Update branch chip and pre-load branch list for the picker menu
+			void this.refreshStatusBranch();
+			void this.prefetchBranches();
 			return true;
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
@@ -199,6 +233,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 			const config: GitManagerConfig = {
 				remoteUrl,
 				branch: this.settings.branch,
+				workingBranch: this.settings.workingBranch || this.settings.branch,
 				token,
 				depth: this.settings.cloneDepth,
 				authorName: this.settings.authorName,
@@ -211,6 +246,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 				token,
 				this.settings.projectPath,
 				this.settings.branch,
+				this.settings.workingBranch || this.settings.branch,
 				this.settings.remoteSubfolder,
 			);
 		}
@@ -235,6 +271,18 @@ export default class GitLabConnectorPlugin extends Plugin {
 	// ── Sync commands ───────────────────────────────────────
 
 	private async executeInit(): Promise<void> {
+		try {
+			this.statusDisplay?.update("syncing", "Resetting...");
+			// Wipe the local git repository so it will be re-cloned with current settings
+			await wipeFs();
+			// Clear persisted sync state so the first-sync modal appears again
+			await clearAllSyncState(this);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			this.statusDisplay?.update("error", msg);
+			new Notice(`${PLUGIN_DISPLAY_NAME}: Reset failed — ${msg}`);
+			return;
+		}
 		this.initialized = false;
 		this.syncEngine = null;
 		this.stateManager = null;
@@ -391,7 +439,122 @@ export default class GitLabConnectorPlugin extends Plugin {
 		return path.startsWith(prefix);
 	}
 
+	// ── Branch picker (status bar) ──────────────────────────
+
+	private showBranchMenu(evt: MouseEvent): void {
+		const current = this.settings.workingBranch || this.settings.branch;
+		const menu = new Menu();
+
+		if (this.cachedBranches.length === 0) {
+			// Branches not loaded yet — offer to load them
+			menu.addItem((item) =>
+				item
+					.setTitle(`Current: ${current}`)
+					.setIcon("git-branch")
+					.setDisabled(true),
+			);
+			menu.addSeparator();
+			menu.addItem((item) =>
+				item
+					.setTitle("Load branches from GitLab…")
+					.setIcon("refresh-cw")
+					.onClick(async () => {
+						await this.prefetchBranches();
+						new Notice(
+							`${PLUGIN_DISPLAY_NAME}: Branches loaded — click the status bar to switch.`,
+						);
+					}),
+			);
+		} else {
+			for (const branch of this.cachedBranches) {
+				const isCurrent = branch === current;
+				menu.addItem((item) =>
+					item
+						.setTitle(branch)
+						.setIcon("git-branch")
+						.setChecked(isCurrent)
+						.onClick(async () => {
+							if (!isCurrent) await this.switchWorkingBranch(branch);
+						}),
+				);
+			}
+			menu.addSeparator();
+			menu.addItem((item) =>
+				item
+					.setTitle("Refresh branch list")
+					.setIcon("refresh-cw")
+					.onClick(async () => {
+						await this.prefetchBranches();
+					}),
+			);
+		}
+
+		menu.showAtMouseEvent(evt);
+	}
+
+	/** Update the branch chip in the status bar from the actual local HEAD. */
+	private async refreshStatusBranch(): Promise<void> {
+		const branch = await this.getLocalBranch();
+		this.statusDisplay?.setBranch(branch);
+	}
+
+	/** Fetch the remote branch list into cachedBranches (best-effort, silent on error). */
+	private async prefetchBranches(): Promise<void> {
+		if (!this.isConfigured()) return;
+		try {
+			const token = this.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "";
+			const client = new GitLabClient(
+				this.settings.gitlabUrl,
+				token,
+				this.settings.projectPath,
+			);
+			const branches = await client.listBranches();
+			this.cachedBranches = branches.map((b) => b.name).sort();
+		} catch {
+			// Non-critical — branch list simply stays empty / stale
+		}
+	}
+
+	/** Switch the working branch, clear state, and re-initialize. */
+	private async switchWorkingBranch(branch: string): Promise<void> {
+		try {
+			this.statusDisplay?.update("syncing", `Switching to ${branch}…`);
+			this.settings.workingBranch = branch;
+			await this.saveSettings();
+			await wipeFs();
+			await clearAllSyncState(this);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			this.statusDisplay?.update("error", msg);
+			new Notice(`${PLUGIN_DISPLAY_NAME}: Branch switch failed — ${msg}`);
+			return;
+		}
+		this.initialized = false;
+		this.syncEngine = null;
+		this.stateManager = null;
+		await this.ensureInitialized();
+	}
+
 	// ── Public helpers (used by settings tab) ───────────────
+
+	/**
+	 * Return the branch currently checked out in the local git repository.
+	 * In REST API mode returns the working branch setting (no local repo).
+	 * Returns null if not yet initialized.
+	 */
+	async getLocalBranch(): Promise<string | null> {
+		if (!this.initialized || !this.syncEngine) return null;
+		try {
+			const backend = this.syncEngine.getBackend();
+			if (backend instanceof GitSyncBackend) {
+				return await backend.getGitManager().getCurrentBranch();
+			}
+			// REST API mode — no local git repo; show the working branch setting
+			return this.settings.workingBranch || this.settings.branch;
+		} catch {
+			return null;
+		}
+	}
 
 	/** Reset the local git repository (wipe LightningFS and re-clone). */
 	async resetGitRepo(): Promise<void> {

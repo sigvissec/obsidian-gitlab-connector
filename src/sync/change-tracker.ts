@@ -5,11 +5,12 @@
  */
 
 import type { Vault } from "obsidian";
+import { normalizePath } from "obsidian";
 import type { RemoteFileInfo, FileChange } from "../types";
 import { ChangeType } from "../types";
 import type { StateManager, FileSyncState } from "./state-manager";
 import { sha256 } from "../utils/hash";
-import { getVaultMdFiles } from "./file-filter";
+import { getAllVaultMdFilePaths } from "./file-filter";
 import {
 	vaultPathToRemotePath,
 	remotePathToVaultPath,
@@ -39,6 +40,7 @@ export async function detectChanges(
 	remoteContents: (path: string) => Promise<string>,
 	vaultSubfolder: string,
 	remoteSubfolder: string,
+	dotDirMap: Record<string, string> = {},
 ): Promise<ChangeDetectionResult> {
 	const localChanges: FileChange[] = [];
 	const remoteChanges: FileChange[] = [];
@@ -50,20 +52,27 @@ export async function detectChanges(
 		remoteByPath.set(rf.path, rf);
 	}
 
-	// Build lookup of local files by their remote-equivalent path
-	const localFiles = getVaultMdFiles(vault, vaultSubfolder);
+	// Build lookup of local files by their remote-equivalent path.
+	// getAllVaultMdFilePaths scans hidden directories (e.g. .github/) that
+	// vault.getMarkdownFiles() skips, so agent/skill files are included.
+	const localFilePaths = await getAllVaultMdFilePaths(vault, vaultSubfolder);
 	const localByRemotePath = new Map<string, { vaultPath: string; content: string }>();
-	for (const file of localFiles) {
-		const content = await vault.cachedRead(file);
-		const remotePath = vaultPathToRemotePath(
-			file.path,
-			vaultSubfolder,
-			remoteSubfolder,
-		);
-		localByRemotePath.set(remotePath, {
-			vaultPath: file.path,
-			content,
-		});
+	for (const filePath of localFilePaths) {
+		try {
+			const content = await vault.adapter.read(normalizePath(filePath));
+			const remotePath = vaultPathToRemotePath(
+				filePath,
+				vaultSubfolder,
+				remoteSubfolder,
+				dotDirMap,
+			);
+			localByRemotePath.set(remotePath, {
+				vaultPath: filePath,
+				content,
+			});
+		} catch {
+			// File disappeared between listing and reading — skip it
+		}
 	}
 
 	// All known paths (union of tracked, local, and remote)

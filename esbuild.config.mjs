@@ -10,8 +10,15 @@ If you want to view the source, please visit the GitHub repository of this plugi
 
 const prod = process.argv[2] === "production";
 
-// Remove 'buffer' from builtins so it gets bundled (needed for mobile polyfill)
-const externalBuiltins = builtinModules.filter((m) => m !== "buffer");
+// Remove 'buffer' and 'crypto' from builtins so they get bundled.
+// 'buffer'  — replaced by polyfill_buffer.js (injected globally).
+// 'crypto'  — replaced by polyfill_node_crypto.js via the alias below.
+// On Android, Obsidian throws "Attempting to load NodeJS package: <name>"
+// for ANY Node.js builtin that reaches a require() at runtime, so these two
+// must never appear as external requires in the bundle.
+const externalBuiltins = builtinModules.filter(
+	(m) => m !== "buffer" && m !== "crypto",
+);
 
 const context = await esbuild.context({
 	banner: {
@@ -20,6 +27,11 @@ const context = await esbuild.context({
 	entryPoints: ["src/main.ts"],
 	bundle: true,
 	inject: ["./polyfill_buffer.js"],
+	alias: {
+		// Redirect require("crypto") to a pure-JS polyfill so Android Obsidian
+		// does not throw "Attempting to load NodeJS package: crypto".
+		crypto: "./polyfill_node_crypto.js",
+	},
 	external: [
 		"obsidian",
 		"electron",

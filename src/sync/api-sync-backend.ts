@@ -16,6 +16,7 @@ export class ApiSyncBackend implements SyncBackend {
 	readonly name = "REST API";
 	private client: GitLabClient;
 	private branch: string;
+	private workingBranch: string;
 	private subfolder: string;
 
 	constructor(
@@ -23,36 +24,53 @@ export class ApiSyncBackend implements SyncBackend {
 		token: string,
 		projectPath: string,
 		branch: string,
+		workingBranch: string,
 		subfolder: string,
 	) {
 		this.client = new GitLabClient(gitlabUrl, token, projectPath);
 		this.branch = branch;
+		this.workingBranch = workingBranch || branch;
 		this.subfolder = subfolder;
 	}
 
 	async initialize(): Promise<void> {
-		// Validate that the token works
-		await this.client.validateToken();
+		// Verify repository access (requires only read_repository scope).
+		// Do NOT call validateToken() — it requires read_user/api scope which
+		// users are not expected to grant.
+		await this.client.validateAccess();
+		// Ensure the working branch exists; create it from the base branch if not.
+		if (this.workingBranch !== this.branch) {
+			await this.client.createBranch(this.workingBranch, this.branch);
+		}
 	}
 
 	async getRemoteFileList(subfolder?: string): Promise<RemoteFileInfo[]> {
 		const folder = subfolder ?? this.subfolder;
-		const items = await this.client.listMarkdownFiles(
-			this.branch,
-			folder || undefined,
-		);
-		return items.map((item) => ({
-			path: item.path,
-			sha: item.id,
-		}));
+		// Read from working branch (where our commits live); fall back to base branch
+		// on the first run before the working branch has any content.
+		const ref = this.workingBranch;
+		try {
+			const items = await this.client.listMarkdownFiles(ref, folder || undefined);
+			return items.map((item) => ({ path: item.path, sha: item.id }));
+		} catch (err) {
+			if (this.workingBranch === this.branch) throw err;
+			// Working branch may be empty on first use — fall back to base branch
+			const items = await this.client.listMarkdownFiles(this.branch, folder || undefined);
+			return items.map((item) => ({ path: item.path, sha: item.id }));
+		}
 	}
 
 	async getRemoteFileContent(path: string): Promise<string> {
-		return this.client.getFileContent(path, this.branch);
+		try {
+			return await this.client.getFileContent(path, this.workingBranch);
+		} catch (err) {
+			if (this.workingBranch === this.branch) throw err;
+			return this.client.getFileContent(path, this.branch);
+		}
 	}
 
 	async getRemoteHeadSha(): Promise<string> {
-		const commit = await this.client.getLatestCommit(this.branch);
+		const commit = await this.client.getLatestCommit(this.workingBranch);
 		return commit.id;
 	}
 
@@ -86,7 +104,7 @@ export class ApiSyncBackend implements SyncBackend {
 			});
 
 			const commit = await this.client.createCommit({
-				branch: this.branch,
+				branch: this.workingBranch,
 				commit_message: commitMessage,
 				actions,
 				author_name: authorName || undefined,
