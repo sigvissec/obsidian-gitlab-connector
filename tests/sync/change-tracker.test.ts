@@ -7,11 +7,11 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
-import { detectChanges } from "./change-tracker";
-import { sha256 } from "../utils/hash";
-import type { RemoteFileInfo } from "../types";
+import { detectChanges } from "../../src/sync/change-tracker";
+import { sha256 } from "../../src/utils/hash";
+import type { RemoteFileInfo } from "../../src/types";
 import type { Vault } from "obsidian";
-import type { StateManager, FileSyncState } from "./state-manager";
+import type { StateManager, FileSyncState } from "../../src/sync/state-manager";
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 

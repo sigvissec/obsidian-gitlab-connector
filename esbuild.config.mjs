@@ -26,11 +26,11 @@ const context = await esbuild.context({
 	},
 	entryPoints: ["src/main.ts"],
 	bundle: true,
-	inject: ["./polyfill_buffer.js"],
+	inject: ["./src/polyfills/buffer.js"],
 	alias: {
 		// Redirect require("crypto") to a pure-JS polyfill so Android Obsidian
 		// does not throw "Attempting to load NodeJS package: crypto".
-		crypto: "./polyfill_node_crypto.js",
+		crypto: "./src/polyfills/node-crypto.js",
 	},
 	external: [
 		"obsidian",
