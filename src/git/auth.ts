@@ -25,15 +25,17 @@ export function createAuthCallback(
 }
 
 /**
- * Create an `onAuthFailure` callback that logs the failure.
- * Returns undefined to signal isomorphic-git to stop retrying.
+ * Create an `onAuthFailure` callback that signals isomorphic-git to
+ * stop retrying.  The callback receives only the URL — the auth object
+ * (which contains the plaintext token) is deliberately not forwarded to
+ * prevent accidental credential leakage via logging.
  */
 export function createAuthFailureCallback(
-	onFailure?: (url: string, auth: GitAuth) => void,
+	onFailure?: (url: string) => void,
 ): AuthFailureCallback {
-	return (url: string, auth: GitAuth) => {
+	return (url: string, _auth: GitAuth) => {
 		if (onFailure) {
-			onFailure(url, auth);
+			onFailure(url);
 		}
 		return undefined as unknown as void;
 	};

@@ -10,7 +10,7 @@
 import { App, Modal, Setting } from "obsidian";
 import type { ConflictInfo, ResolvedConflict } from "../types";
 import { ConflictKind, ConflictResolution } from "../types";
-import { generateDiffHtml, createConflictMarkers } from "../utils/diff";
+import { renderDiffToContainer, createConflictMarkers } from "../utils/diff";
 import { PLUGIN_DISPLAY_NAME } from "../constants";
 
 export class ConflictModal extends Modal {
@@ -86,13 +86,13 @@ export class ConflictModal extends Modal {
 		// ── Diff view ───────────────────────────────────────
 		const diffContainer = contentEl.createDiv("glc-diff-container");
 
-		// Show local vs remote diff (base is implicit context)
-		const diffHtml = generateDiffHtml(
+		// Show local vs remote diff using safe DOM construction
+		renderDiffToContainer(
+			diffContainer,
 			conflict.remoteContent,
 			conflict.localContent,
 			conflict.path,
 		);
-		diffContainer.innerHTML = diffHtml;
 
 		// ── Action buttons ──────────────────────────────────
 		const actions = contentEl.createDiv("glc-conflict-actions");

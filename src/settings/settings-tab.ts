@@ -63,12 +63,14 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			.addText((text) => {
 				text.inputEl.type = "password";
 				text.inputEl.autocomplete = "off";
+				const hasToken = !!(this.plugin.app.secretStorage.getSecret(PAT_SECRET_KEY));
 				text
-					.setPlaceholder("glpat-xxxxxxxxxxxx")
-					.setValue(this.plugin.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "")
+					.setPlaceholder(hasToken ? "Token saved — enter new value to replace" : "glpat-xxxxxxxxxxxx")
+					.setValue("")
 					.onChange((value) => {
-						// Write directly to SecretStorage; PAT is not part of plugin settings
-						this.plugin.app.secretStorage.setSecret(PAT_SECRET_KEY, value.trim());
+						if (value.trim()) {
+							this.plugin.app.secretStorage.setSecret(PAT_SECRET_KEY, value.trim());
+						}
 					});
 			});
 
@@ -448,7 +450,6 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			gitlabUrl,
 			projectPath,
 			tokenPresent: personalAccessToken.length > 0,
-			tokenLength: personalAccessToken.length,
 		});
 
 		if (!gitlabUrl || !personalAccessToken) {

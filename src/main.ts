@@ -254,7 +254,17 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 	private buildRemoteUrl(): string {
 		const base = this.settings.gitlabUrl.replace(/\/+$/, "");
+		if (!/^https:\/\//i.test(base)) {
+			throw new Error(
+				"GitLab URL must use HTTPS to protect your Personal Access Token.",
+			);
+		}
 		const project = this.settings.projectPath;
+		if (!/^[\w\-./]+$/.test(project)) {
+			throw new Error(
+				"Invalid project path. Only alphanumeric characters, hyphens, underscores, dots, and forward slashes are allowed.",
+			);
+		}
 		return `${base}/${project}.git`;
 	}
 

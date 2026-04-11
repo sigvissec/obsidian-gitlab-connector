@@ -138,6 +138,43 @@ export function countChanges(patch: ParsedDiff): number {
 	return patch.hunks.length;
 }
 
+/**
+ * Render a unified diff into a container element using safe DOM APIs.
+ *
+ * This avoids innerHTML entirely — all text content is set via textContent,
+ * which is immune to XSS regardless of what the diff content contains.
+ */
+export function renderDiffToContainer(
+	container: HTMLElement,
+	oldText: string,
+	newText: string,
+	filename = "file.md",
+): void {
+	const patch = generateStructuredDiff(oldText, newText, filename);
+	const wrapper = container.createDiv({ cls: "glc-diff" });
+
+	for (const hunk of patch.hunks) {
+		const header = wrapper.createDiv({ cls: "glc-diff-hunk-header" });
+		header.textContent = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+
+		for (const line of hunk.lines) {
+			const prefix = line.charAt(0);
+			const content = line.slice(1);
+			let cls = "glc-diff-line glc-diff-context";
+			let marker = "  ";
+			if (prefix === "+") {
+				cls = "glc-diff-line glc-diff-added";
+				marker = "+ ";
+			} else if (prefix === "-") {
+				cls = "glc-diff-line glc-diff-removed";
+				marker = "- ";
+			}
+			const el = wrapper.createDiv({ cls });
+			el.textContent = `${marker}${content}`;
+		}
+	}
+}
+
 /** Escape HTML special characters. */
 function escapeHtml(text: string): string {
 	return text

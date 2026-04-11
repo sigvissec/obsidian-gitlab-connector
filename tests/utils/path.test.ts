@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { remotePathToVaultPath, vaultPathToRemotePath } from "../../src/utils/path";
+import { remotePathToVaultPath, vaultPathToRemotePath, assertSafePath } from "../../src/utils/path";
 
 // ── remotePathToVaultPath ────────────────────────────────────────────────────
 
@@ -158,5 +158,52 @@ describe("path round-trip", () => {
 		const remote = "notes/daily/2024-01-01.md";
 		const vault = remotePathToVaultPath(remote, "", "", map);
 		expect(vaultPathToRemotePath(vault, "", "", map)).toBe(remote);
+	});
+});
+
+// ── Path traversal protection ──────────────────────────────────────────────
+
+describe("assertSafePath", () => {
+	it("allows normal relative paths", () => {
+		expect(() => assertSafePath("notes/foo.md")).not.toThrow();
+		expect(() => assertSafePath("a/b/c/d.md")).not.toThrow();
+		expect(() => assertSafePath("file.md")).not.toThrow();
+	});
+
+	it("rejects paths with .. traversal segments", () => {
+		expect(() => assertSafePath("../secret.md")).toThrow("Path traversal rejected");
+		expect(() => assertSafePath("notes/../../etc/passwd")).toThrow("Path traversal rejected");
+		expect(() => assertSafePath("a/b/../../../escape.md")).toThrow("Path traversal rejected");
+	});
+
+	it("rejects absolute paths", () => {
+		expect(() => assertSafePath("/etc/passwd")).toThrow("Absolute path rejected");
+		expect(() => assertSafePath("/home/user/.obsidian/config")).toThrow("Absolute path rejected");
+	});
+
+	it("does not reject paths with dots that are not traversal (e.g. .github)", () => {
+		expect(() => assertSafePath(".github/foo.md")).not.toThrow();
+		expect(() => assertSafePath("notes/.hidden/bar.md")).not.toThrow();
+		expect(() => assertSafePath("file.with.dots.md")).not.toThrow();
+	});
+});
+
+describe("path traversal integrated into path translation", () => {
+	it("remotePathToVaultPath rejects traversal in remote path", () => {
+		expect(() =>
+			remotePathToVaultPath("../../.obsidian/plugins/evil/main.js", "", ""),
+		).toThrow("Path traversal rejected");
+	});
+
+	it("remotePathToVaultPath rejects traversal hidden inside a subfolder path", () => {
+		expect(() =>
+			remotePathToVaultPath("notes/../../../escape.md", "notes/", "vault/"),
+		).toThrow("Path traversal rejected");
+	});
+
+	it("vaultPathToRemotePath rejects traversal in vault path", () => {
+		expect(() =>
+			vaultPathToRemotePath("../../../etc/passwd", "", ""),
+		).toThrow("Path traversal rejected");
 	});
 });
