@@ -1,0 +1,293 @@
+/* ── GitLab Connector Plugin Styles ────────────────────────── */
+
+/* ── Status Bar ──────────────────────────────────────────── */
+
+.glc-status-branch {
+	margin-left: 6px;
+	padding: 1px 6px;
+	border-radius: 3px;
+	font-size: 0.85em;
+	font-family: var(--font-monospace);
+	background-color: var(--background-modifier-hover);
+	color: var(--text-muted);
+}
+
+/* ── Conflict Modal ──────────────────────────────────────── */
+
+.glc-conflict-modal .modal-content {
+	padding: 0;
+}
+
+.glc-conflict-header {
+	padding: 16px 20px 8px;
+}
+
+.glc-conflict-header h2 {
+	margin: 0 0 4px 0;
+	font-size: 1.2em;
+}
+
+.glc-conflict-filename {
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	color: var(--text-muted);
+	word-break: break-all;
+}
+
+.glc-conflict-context {
+	padding: 8px 20px;
+}
+
+.glc-conflict-auto-badge {
+	padding: 8px 12px;
+	background: var(--background-modifier-success);
+	border-radius: 6px;
+	font-size: 0.85em;
+}
+
+.glc-conflict-manual-badge {
+	padding: 8px 12px;
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+	border-radius: 6px;
+	font-size: 0.85em;
+}
+
+/* ── Diff View ───────────────────────────────────────────── */
+
+.glc-diff-container {
+	padding: 8px 20px;
+	max-height: 50vh;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.glc-diff {
+	font-family: var(--font-monospace);
+	font-size: 0.8em;
+	line-height: 1.5;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.glc-diff-hunk-header {
+	padding: 4px 12px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: 0.85em;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.glc-diff-line {
+	padding: 2px 12px;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.glc-diff-added {
+	background: rgba(0, 180, 0, 0.15);
+}
+
+.glc-diff-removed {
+	background: rgba(220, 0, 0, 0.15);
+}
+
+.glc-diff-context {
+	color: var(--text-muted);
+}
+
+/* ── Action Buttons ──────────────────────────────────────── */
+
+.glc-conflict-actions,
+.glc-deletion-actions,
+.glc-initial-sync-actions,
+.glc-commit-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding: 16px 20px;
+	justify-content: center;
+}
+
+.glc-action-btn {
+	min-width: 120px;
+	min-height: 44px;
+	font-size: 0.95em;
+	padding: 10px 16px;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+/* ── Deletion Modal ──────────────────────────────────────── */
+
+.glc-deletion-modal h2 {
+	margin-top: 0;
+}
+
+.glc-deletion-list {
+	padding: 8px 0;
+	max-height: 40vh;
+	overflow-y: auto;
+}
+
+.glc-deletion-item {
+	padding: 6px 12px;
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* ── Progress Modal ──────────────────────────────────────── */
+
+.glc-progress-modal .modal-content {
+	text-align: center;
+}
+
+.glc-progress-message {
+	font-size: 1.1em;
+	padding: 16px 0 4px;
+}
+
+.glc-progress-detail {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	padding-bottom: 16px;
+}
+
+/* ── Initial Sync Modal ──────────────────────────────────── */
+
+.glc-initial-sync-modal h2 {
+	margin-top: 0;
+}
+
+.glc-initial-sync-modal p {
+	color: var(--text-muted);
+}
+
+/* ── Commit Modal ────────────────────────────────────────── */
+
+.glc-commit-subtitle {
+	color: var(--text-muted);
+	margin-top: 0;
+	margin-bottom: 12px;
+	font-size: 0.9em;
+}
+
+.glc-commit-file-list {
+	max-height: 40vh;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin-bottom: 8px;
+}
+
+.glc-commit-file-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.glc-commit-file-row:last-child {
+	border-bottom: none;
+}
+
+.glc-badge {
+	display: inline-block;
+	font-family: var(--font-monospace);
+	font-size: 0.75em;
+	padding: 2px 6px;
+	border-radius: 4px;
+	min-width: 62px;
+	text-align: center;
+	flex-shrink: 0;
+	font-weight: 600;
+	text-transform: lowercase;
+}
+
+.glc-badge-created {
+	background: var(--background-modifier-success);
+	color: var(--text-success);
+}
+
+.glc-badge-modified {
+	background: rgba(255, 180, 0, 0.2);
+	color: var(--text-warning, #c47800);
+}
+
+.glc-badge-deleted {
+	background: var(--background-modifier-error);
+	color: var(--text-error);
+}
+
+.glc-commit-filepath {
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+}
+
+.glc-commit-selection-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 12px;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.glc-link-btn {
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	color: var(--text-accent);
+	font-size: inherit;
+	text-decoration: underline;
+}
+
+.glc-link-btn:hover {
+	color: var(--text-accent-hover, var(--text-accent));
+}
+
+.glc-commit-label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 6px;
+	font-size: 0.9em;
+}
+
+/* ── Directory Map Display ───────────────────────────────── */
+
+.glc-dir-map-list {
+	margin-top: 6px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.glc-dir-map-entry {
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	color: var(--text-muted);
+	padding: 2px 0;
+}
+
+.glc-commit-message {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+	margin-bottom: 16px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+	padding: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
