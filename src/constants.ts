@@ -52,3 +52,6 @@ export const MARKDOWN_EXTENSION = ".md";
 
 /** Plugin display name (for notices/logs). */
 export const PLUGIN_DISPLAY_NAME = "GitLab Connector";
+
+/** SecretStorage key for the GitLab Personal Access Token. */
+export const PAT_SECRET_KEY = "gitlab-connector-pat";

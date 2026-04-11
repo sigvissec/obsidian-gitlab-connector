@@ -6,7 +6,7 @@
  */
 
 import type { App, Vault, TFile } from "obsidian";
-import { normalizePath } from "obsidian";
+import { normalizePath, Notice } from "obsidian";
 import type { SyncBackend } from "./sync-backend";
 import { StateManager, FileSyncState } from "./state-manager";
 import { detectChanges, ChangeDetectionResult } from "./change-tracker";
@@ -23,6 +23,7 @@ import type {
 	ConflictInfo,
 	ResolvedConflict,
 	PushResult,
+	CommitSelection,
 } from "../types";
 import {
 	ChangeType,
@@ -32,10 +33,12 @@ import {
 	SyncDirection,
 } from "../types";
 import { ConflictModal } from "../ui/conflict-modal";
+import { CommitModal } from "../ui/commit-modal";
 import { DeletionConfirmModal, DeletionChoice } from "../ui/deletion-confirm-modal";
 import { InitialSyncModal } from "../ui/initial-sync-modal";
 import { SyncProgressModal } from "../ui/sync-progress-modal";
 import type { GitLabConnectorSettings } from "../settings/settings";
+import { PLUGIN_DISPLAY_NAME } from "../constants";
 
 export class SyncEngine {
 	private app: App;
@@ -133,6 +136,19 @@ export class SyncEngine {
 		this.syncing = true;
 		try {
 			await this.doPush();
+		} finally {
+			this.syncing = false;
+		}
+	}
+
+	/** Push a user-selected subset of local changes with a custom commit message. */
+	async pushWithSelection(): Promise<void> {
+		if (this.syncing) {
+			throw new Error("A sync operation is already in progress.");
+		}
+		this.syncing = true;
+		try {
+			await this.doPushWithSelection();
 		} finally {
 			this.syncing = false;
 		}
@@ -375,6 +391,90 @@ export class SyncEngine {
 		await this.stateManager.save();
 	}
 
+	private async doPushWithSelection(): Promise<void> {
+		const remoteFiles = await this.backend.getRemoteFileList(
+			this.settings.remoteSubfolder || undefined,
+		);
+		const changes = await detectChanges(
+			this.vault,
+			this.stateManager,
+			remoteFiles,
+			(path) => this.backend.getRemoteFileContent(path),
+			this.settings.vaultSubfolder,
+			this.settings.remoteSubfolder,
+		);
+
+		if (changes.localChanges.length === 0) {
+			new Notice(`${PLUGIN_DISPLAY_NAME}: Nothing to push — no local changes detected.`);
+			return;
+		}
+
+		// Load content for each local change
+		const allChanges: FileChange[] = [];
+		for (const change of changes.localChanges) {
+			if (change.type === ChangeType.DELETED) {
+				allChanges.push(change);
+				continue;
+			}
+			const vaultPath = remotePathToVaultPath(
+				change.path,
+				this.settings.remoteSubfolder,
+				this.settings.vaultSubfolder,
+			);
+			const file = this.vault.getFileByPath(vaultPath);
+			if (file) {
+				const content = await this.vault.read(file);
+				allChanges.push({ path: change.path, type: change.type, content });
+			}
+		}
+
+		if (allChanges.length === 0) return;
+
+		// Show modal — user selects files and writes commit message
+		const defaultMessage = this.generateCommitMessage(allChanges);
+		const modal = new CommitModal(this.app, allChanges, defaultMessage);
+		const selection = await modal.openAndWait();
+
+		if (!selection || selection.changes.length === 0) return; // cancelled
+
+		const result = await this.backend.pushChanges(
+			selection.changes,
+			selection.message,
+			this.settings.authorName,
+			this.settings.authorEmail,
+		);
+
+		if (!result.success) {
+			if (result.conflict) {
+				throw new Error(
+					"Push rejected — remote has new changes. Pull first, then push again.",
+				);
+			}
+			throw new Error(`Push failed: ${result.error}`);
+		}
+
+		// Update state for selected files only
+		for (const change of selection.changes) {
+			if (change.type === ChangeType.DELETED) {
+				this.stateManager.removeFileState(change.path);
+			} else if (change.content) {
+				const hash = await sha256(change.content);
+				this.stateManager.updateFileState(change.path, {
+					contentHash: hash,
+					baseContent: change.content,
+					remoteSha: result.commitSha ?? "",
+					lastSynced: Date.now(),
+				});
+			}
+		}
+
+		this.stateManager.setLastSyncTimestamp(Date.now());
+		if (result.commitSha) {
+			this.stateManager.setLastRemoteCommitSha(result.commitSha);
+		}
+		await this.stateManager.save();
+	}
+
 	// ── First-sync handling ─────────────────────────────────
 
 	private async handleFirstSync(): Promise<boolean> {
@@ -551,7 +651,16 @@ export class SyncEngine {
 		const normalized = normalizePath(folderPath);
 		const existing = this.vault.getFolderByPath(normalized);
 		if (!existing) {
-			await this.vault.createFolder(normalized);
+			try {
+				await this.vault.createFolder(normalized);
+			} catch (err) {
+				// Folder may have been created between the existence check and this
+				// call (e.g. by Obsidian's file indexer or a parallel operation).
+				// Re-throw only if it is a genuine error.
+				if (this.vault.getFolderByPath(normalized) === null) {
+					throw err;
+				}
+			}
 		}
 	}
 

@@ -8,7 +8,7 @@
 
 import git from "isomorphic-git";
 import type { ReadCommitResult, AuthCallback, AuthFailureCallback } from "isomorphic-git";
-import http from "isomorphic-git/http/web";
+import { httpAdapter as http } from "./http-adapter";
 import type FS from "@isomorphic-git/lightning-fs";
 import { getFs, getRepoDir, repoExists, ensureRepoDir, wipeFs } from "./fs-adapter";
 import { createAuthCallback, createAuthFailureCallback } from "./auth";

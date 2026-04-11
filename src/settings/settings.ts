@@ -13,8 +13,6 @@ export interface GitLabConnectorSettings {
 	// ── Connection ──────────────────────────────────────────
 	/** GitLab instance base URL (e.g. https://gitlab.com). */
 	gitlabUrl: string;
-	/** Personal Access Token with at least read_repository + write_repository scopes. */
-	personalAccessToken: string;
 	/** Project path (e.g. "user/repo") or numeric project ID. */
 	projectPath: string;
 	/** Branch to sync against. */
@@ -46,7 +44,6 @@ export interface GitLabConnectorSettings {
 /** Sensible defaults applied when no saved settings exist yet. */
 export const DEFAULT_SETTINGS: GitLabConnectorSettings = {
 	gitlabUrl: DEFAULT_GITLAB_URL,
-	personalAccessToken: "",
 	projectPath: "",
 	branch: DEFAULT_BRANCH,
 

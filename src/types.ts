@@ -95,6 +95,14 @@ export interface PushResult {
 	conflict?: boolean;
 }
 
+/** The user's staged file selection and commit message from CommitModal. */
+export interface CommitSelection {
+	/** The subset of file changes the user chose to include. */
+	changes: FileChange[];
+	/** The commit message entered by the user. */
+	message: string;
+}
+
 /** Result of a three-way merge attempt. */
 export interface MergeResult {
 	/** Whether the merge succeeded without conflict. */

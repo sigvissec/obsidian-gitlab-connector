@@ -34,9 +34,24 @@ export class GitLabClient {
 
 	// ── Authentication ──────────────────────────────────────
 
-	/** Validate the token by fetching the authenticated user. */
+	/** Validate the token by fetching the authenticated user. Requires read_user or api scope. */
 	async validateToken(): Promise<GitLabUser> {
 		return this.get<GitLabUser>(`${GITLAB_API_V4}/user`);
+	}
+
+	/**
+	 * Validate token and project access by fetching repository branches.
+	 * Requires only read_repository scope, making it compatible with the
+	 * minimum scopes needed for sync operations.
+	 */
+	async validateAccess(): Promise<void> {
+		if (!this.projectId) {
+			throw new Error("Project path is required to validate access.");
+		}
+		await this.get<unknown[]>(
+			`${GITLAB_API_V4}/projects/${this.projectId}/repository/branches`,
+			{ per_page: "1" },
+		);
 	}
 
 	// ── Projects ────────────────────────────────────────────
@@ -198,6 +213,12 @@ export class GitLabClient {
 			url += `?${searchParams.toString()}`;
 		}
 
+		console.debug("[GitLab Connector] HTTP request", {
+			method,
+			url,
+			tokenPresent: this.token.length > 0,
+		});
+
 		const requestParams: RequestUrlParam = {
 			url,
 			method,
@@ -212,6 +233,11 @@ export class GitLabClient {
 		}
 
 		const response = await requestUrl(requestParams);
+
+		console.debug("[GitLab Connector] HTTP response", {
+			status: response.status,
+			...(response.status >= 400 && { body: response.text }),
+		});
 
 		if (response.status >= 400) {
 			const errorBody = response.json as GitLabErrorResponse | undefined;

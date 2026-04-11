@@ -18,6 +18,7 @@ import {
 	MAX_SYNC_INTERVAL_MINUTES,
 	MIN_CLONE_DEPTH,
 	MAX_CLONE_DEPTH,
+	PAT_SECRET_KEY,
 	PLUGIN_DISPLAY_NAME,
 } from "../constants";
 import { GitLabClient, GitLabApiError } from "../api/gitlab-client";
@@ -53,18 +54,17 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Personal Access Token")
 			.setDesc(
-				"A GitLab PAT with read_repository and write_repository scopes. Stored in plaintext in plugin settings.",
+				"A GitLab PAT with read_repository and write_repository scopes (git mode), or api/read_api scope (REST API mode). Stored securely using Obsidian's secret storage.",
 			)
 			.addText((text) => {
 				text.inputEl.type = "password";
 				text.inputEl.autocomplete = "off";
 				text
 					.setPlaceholder("glpat-xxxxxxxxxxxx")
-					.setValue(this.plugin.settings.personalAccessToken)
-					.onChange(async (value) => {
-						this.plugin.settings.personalAccessToken =
-							value.trim();
-						await this.plugin.saveSettings();
+					.setValue(this.plugin.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "")
+					.onChange((value) => {
+						// Write directly to SecretStorage; PAT is not part of plugin settings
+						this.plugin.app.secretStorage.setSecret(PAT_SECRET_KEY, value.trim());
 					});
 			});
 
@@ -268,26 +268,34 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 	}
 
 	private async validateConnection(): Promise<void> {
-		const { gitlabUrl, personalAccessToken } = this.plugin.settings;
+		const { gitlabUrl, projectPath } = this.plugin.settings;
+		const personalAccessToken =
+			this.plugin.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "";
+
+		console.debug("[GitLab Connector] validateConnection", {
+			gitlabUrl,
+			projectPath,
+			tokenPresent: personalAccessToken.length > 0,
+			tokenLength: personalAccessToken.length,
+		});
+
 		if (!gitlabUrl || !personalAccessToken) {
 			new Notice("Please enter both the GitLab URL and a Personal Access Token.");
 			return;
 		}
+		if (!projectPath) {
+			new Notice("Please enter a project path to test the connection.");
+			return;
+		}
 
 		try {
-			const client = new GitLabClient(
-				gitlabUrl,
-				personalAccessToken,
-				"",
-			);
-			const user = await client.validateToken();
-			new Notice(
-				`Connection successful! Authenticated as ${user.name} (@${user.username}).`,
-			);
+			const client = new GitLabClient(gitlabUrl, personalAccessToken, projectPath);
+			await client.validateAccess();
+			new Notice("Connection successful! Repository is accessible.");
 		} catch (err) {
 			if (err instanceof GitLabApiError && err.isAuthError) {
 				new Notice(
-					"Authentication failed. Check your URL and token.",
+					"Authentication failed. Check your token and ensure it has read_repository scope.",
 				);
 			} else {
 				const msg =

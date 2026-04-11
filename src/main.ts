@@ -13,6 +13,7 @@ import { GitLabConnectorSettingsTab } from "./settings/settings-tab";
 import { SyncMode, SyncTrigger } from "./types";
 import {
 	FILE_CHANGE_DEBOUNCE_MS,
+	PAT_SECRET_KEY,
 	PLUGIN_DISPLAY_NAME,
 } from "./constants";
 
@@ -69,6 +70,12 @@ export default class GitLabConnectorPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "commit-push",
+			name: "Commit and push selected files",
+			callback: () => this.executeCommitAndPush(),
+		});
+
+		this.addCommand({
 			id: "init",
 			name: "Initialize connection",
 			callback: () => this.executeInit(),
@@ -90,11 +97,19 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		const data = await this.loadData();
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			data?.settings ?? {},
-		);
+		const rawSettings = { ...(data?.settings ?? {}) };
+
+		// One-time migration: if a plaintext PAT exists in data.json, move it to SecretStorage
+		const legacyPat = (rawSettings as Record<string, unknown>).personalAccessToken as string | undefined;
+		if (legacyPat) {
+			this.app.secretStorage.setSecret(PAT_SECRET_KEY, legacyPat);
+			delete (rawSettings as Record<string, unknown>).personalAccessToken;
+			const cleaned = data ?? {};
+			cleaned.settings = rawSettings;
+			await this.saveData(cleaned);
+		}
+
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, rawSettings);
 	}
 
 	async saveSettings(): Promise<void> {
@@ -178,12 +193,13 @@ export default class GitLabConnectorPlugin extends Plugin {
 	}
 
 	private createBackend(): SyncBackend {
+		const token = this.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "";
 		if (this.settings.syncMode === SyncMode.ISOMORPHIC_GIT) {
 			const remoteUrl = this.buildRemoteUrl();
 			const config: GitManagerConfig = {
 				remoteUrl,
 				branch: this.settings.branch,
-				token: this.settings.personalAccessToken,
+				token,
 				depth: this.settings.cloneDepth,
 				authorName: this.settings.authorName,
 				authorEmail: this.settings.authorEmail,
@@ -192,7 +208,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 		} else {
 			return new ApiSyncBackend(
 				this.settings.gitlabUrl,
-				this.settings.personalAccessToken,
+				token,
 				this.settings.projectPath,
 				this.settings.branch,
 				this.settings.remoteSubfolder,
@@ -207,9 +223,10 @@ export default class GitLabConnectorPlugin extends Plugin {
 	}
 
 	private isConfigured(): boolean {
+		const token = this.app.secretStorage.getSecret(PAT_SECRET_KEY);
 		return !!(
 			this.settings.gitlabUrl &&
-			this.settings.personalAccessToken &&
+			token &&
 			this.settings.projectPath &&
 			this.settings.branch
 		);
@@ -252,6 +269,24 @@ export default class GitLabConnectorPlugin extends Plugin {
 		try {
 			this.statusDisplay?.update("syncing", "Pushing...");
 			await this.syncEngine!.push();
+			this.statusDisplay?.update("success", "Push complete");
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			this.statusDisplay?.update("error", msg);
+			new Notice(`${PLUGIN_DISPLAY_NAME}: Push failed — ${msg}`);
+		}
+	}
+
+	private async executeCommitAndPush(): Promise<void> {
+		if (!(await this.ensureInitialized())) return;
+		if (this.syncEngine!.isSyncing()) {
+			new Notice(`${PLUGIN_DISPLAY_NAME}: Sync already in progress.`);
+			return;
+		}
+
+		try {
+			this.statusDisplay?.update("syncing", "Staging...");
+			await this.syncEngine!.pushWithSelection();
 			this.statusDisplay?.update("success", "Push complete");
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
