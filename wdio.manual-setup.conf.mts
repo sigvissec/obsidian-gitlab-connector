@@ -1,0 +1,71 @@
+/**
+ * WDIO config used by scripts/start-emulator.sh to install the plugin into
+ * Obsidian on the running emulator and leave it open for manual testing.
+ *
+ * Not intended for CI — use wdio.mobile.conf.mts for automated tests.
+ */
+import * as path from "path";
+import { execSync } from "child_process";
+import { parseObsidianVersions } from "wdio-obsidian-service";
+import { env } from "process";
+
+const cacheDir = path.resolve(".obsidian-cache");
+
+const versions = await parseObsidianVersions("latest/latest", { cacheDir });
+
+export const config: WebdriverIO.Config = {
+  runner: "local",
+  framework: "mocha",
+
+  specs: ["./test/specs/manual-setup.ts"],
+
+  maxInstances: 1,
+  hostname: env.APPIUM_HOST || "localhost",
+  port: parseInt(env.APPIUM_PORT || "4723"),
+
+  // Give the already-running emulator plenty of time to respond.
+  connectionRetryTimeout: 600 * 1000,
+  connectionRetryCount: 0,
+
+  capabilities: versions.map<WebdriverIO.Capabilities>(([appVersion]) => ({
+    browserName: "obsidian",
+    browserVersion: appVersion,
+    platformName: "Android",
+    "appium:automationName": "UiAutomator2",
+    "appium:avd": "Pixel_10",
+    "appium:noReset": true,
+    "appium:avdLaunchTimeout": 300 * 1000,
+    "appium:avdReadyTimeout": 300 * 1000,
+    "appium:adbExecTimeout": 120 * 1000,
+    "wdio:obsidianOptions": {
+      plugins: ["."],
+      vault: "test/vaults/simple",
+      // copy: false keeps the vault on the device after teardown so Obsidian
+      // can continue using it for manual testing once WDIO exits.
+      copy: false,
+    },
+  })),
+
+  services: [
+    "obsidian",
+    ["appium", {
+      args: { allowInsecure: "*:chromedriver_autodownload,*:adb_shell" },
+    }],
+  ],
+  reporters: ["spec"],
+
+  mochaOpts: {
+    ui: "bdd",
+    timeout: 120 * 1000,
+  },
+  waitforInterval: 250,
+  waitforTimeout: 10 * 1000,
+  logLevel: "warn",
+
+  onPrepare() {
+    try { execSync("adb start-server", { stdio: "inherit" }); } catch { /* ignore */ }
+  },
+
+  cacheDir,
+  injectGlobals: false,
+};

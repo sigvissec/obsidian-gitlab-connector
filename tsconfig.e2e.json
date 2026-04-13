@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "mocha", "@wdio/globals/types", "wdio-obsidian-service"],
+    "module": "ESNext",
+    "target": "ES2020",
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["test/**/*.ts", "wdio.conf.mts", "wdio.mobile.conf.mts"]
+}

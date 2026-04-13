@@ -16,5 +16,15 @@ Thumbs.db
 # Obsidian
 data.json
 
+# WDIO / Obsidian test cache
+.obsidian-cache/
+
+# Test vault: plugin + runtime files written in-place by obsidian-launcher
+# when running scripts/start-emulator.sh (copy: false mode).
+test/vaults/*/.obsidian/plugins/
+test/vaults/*/.obsidian/community-plugins.json
+test/vaults/*/.obsidian/appearance.json
+
 # Temporary
 tmp_info.md
+tmp/
