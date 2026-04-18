@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-gitlab-connector",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"description": "Sync markdown files between your Obsidian vault and a GitLab repository.",
 	"main": "main.js",
 	"scripts": {
