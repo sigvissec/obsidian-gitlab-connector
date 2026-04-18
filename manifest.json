@@ -3,7 +3,7 @@
 	"name": "GitLab Connector",
 	"version": "1.0.0",
 	"minAppVersion": "1.11.4",
-	"description": "Sync markdown files between your Obsidian vault and a GitLab repository. Supports offline editing via isomorphic-git and a lightweight REST API fallback.",
+	"description": "Sync markdown files between your vault and a GitLab repository. Supports offline editing via isomorphic-git and a lightweight REST API fallback.",
 	"author": "",
 	"isDesktopOnly": false
 }
