@@ -3,7 +3,7 @@
 	"name": "GitLab Connector",
 	"version": "1.0.0",
 	"minAppVersion": "1.11.4",
-	"description": "Sync markdown files between your vaults and GitLab repositories. Supports offline editing via isomorphic-git and a lightweight REST API fallback for both mobile (Android) and desktop.",
+	"description": "Sync markdown files between Vaults and GitLab repositories. Supports offline editing via isomorphic-git and a lightweight REST API fallback for both mobile (Android) and desktop.",
 	"author": "sigvis",
 	"isDesktopOnly": false
 }
