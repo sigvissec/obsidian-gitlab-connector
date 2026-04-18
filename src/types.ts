@@ -117,3 +117,12 @@ export enum InitialSyncDirection {
 	PUSH_LOCAL = "push-local",
 	CANCEL = "cancel",
 }
+
+/** Outcome of the "Validate connection" check. */
+export type ConnectionCheckResult =
+	| { kind: "ok" }
+	| { kind: "branch-missing"; branch: string }
+	| { kind: "missing-credentials" }
+	| { kind: "missing-project" }
+	| { kind: "auth-failed" }
+	| { kind: "error"; message: string };

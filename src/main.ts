@@ -7,11 +7,12 @@
  */
 
 import { Menu, Notice, Plugin } from "obsidian";
-import { GitLabClient } from "./api/gitlab-client";
+import { GitLabApiError, GitLabClient } from "./api/gitlab-client";
 import type { GitLabConnectorSettings } from "./settings/settings";
 import { DEFAULT_SETTINGS } from "./settings/settings";
 import { GitLabConnectorSettingsTab } from "./settings/settings-tab";
 import { SyncMode, SyncTrigger } from "./types";
+import type { ConnectionCheckResult } from "./types";
 import {
 	FILE_CHANGE_DEBOUNCE_MS,
 	PAT_SECRET_KEY,
@@ -573,6 +574,37 @@ export default class GitLabConnectorPlugin extends Plugin {
 	private async refreshStatusBranch(): Promise<void> {
 		const branch = await this.getLocalBranch();
 		this.statusDisplay?.setBranch(branch);
+	}
+
+	/**
+	 * Validate that the configured GitLab URL + PAT + project path are
+	 * reachable AND that the configured source branch exists on the remote.
+	 * Returns a structured result so callers (settings UI, E2E tests) can
+	 * branch on each failure mode without scraping user-facing strings.
+	 */
+	async checkConnection(): Promise<ConnectionCheckResult> {
+		const { gitlabUrl, projectPath, branch } = this.settings;
+		const token = this.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "";
+
+		if (!gitlabUrl || !token) return { kind: "missing-credentials" };
+		if (!projectPath) return { kind: "missing-project" };
+
+		try {
+			const client = new GitLabClient(gitlabUrl, token, projectPath);
+			await client.validateAccess();
+			if (branch && !(await client.branchExists(branch))) {
+				return { kind: "branch-missing", branch };
+			}
+			return { kind: "ok" };
+		} catch (err) {
+			if (err instanceof GitLabApiError && err.isAuthError) {
+				return { kind: "auth-failed" };
+			}
+			return {
+				kind: "error",
+				message: err instanceof Error ? err.message : String(err),
+			};
+		}
 	}
 
 	/** Fetch the remote branch list into cachedBranches (best-effort, silent on error). */

@@ -21,7 +21,7 @@ import {
 	PAT_SECRET_KEY,
 	PLUGIN_DISPLAY_NAME,
 } from "../constants";
-import { GitLabClient, GitLabApiError } from "../api/gitlab-client";
+import { GitLabClient } from "../api/gitlab-client";
 
 export class GitLabConnectorSettingsTab extends PluginSettingTab {
 	plugin: GitLabConnectorPlugin;
@@ -442,39 +442,30 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 	}
 
 	private async validateConnection(): Promise<void> {
-		const { gitlabUrl, projectPath } = this.plugin.settings;
-		const personalAccessToken =
-			this.plugin.app.secretStorage.getSecret(PAT_SECRET_KEY) ?? "";
-
-		console.debug("[GitLab Connector] validateConnection", {
-			gitlabUrl,
-			projectPath,
-			tokenPresent: personalAccessToken.length > 0,
-		});
-
-		if (!gitlabUrl || !personalAccessToken) {
-			new Notice("Please enter both the GitLab URL and a Personal Access Token.");
-			return;
-		}
-		if (!projectPath) {
-			new Notice("Please enter a project path to test the connection.");
-			return;
-		}
-
-		try {
-			const client = new GitLabClient(gitlabUrl, personalAccessToken, projectPath);
-			await client.validateAccess();
-			new Notice("Connection successful! Repository is accessible.");
-		} catch (err) {
-			if (err instanceof GitLabApiError && err.isAuthError) {
+		const result = await this.plugin.checkConnection();
+		switch (result.kind) {
+			case "ok":
+				new Notice("Connection successful! Repository is accessible.");
+				return;
+			case "branch-missing":
+				new Notice(
+					`Connection successful, but the remote branch "${result.branch}" does not exist in the repository.`,
+				);
+				return;
+			case "missing-credentials":
+				new Notice("Please enter both the GitLab URL and a Personal Access Token.");
+				return;
+			case "missing-project":
+				new Notice("Please enter a project path to test the connection.");
+				return;
+			case "auth-failed":
 				new Notice(
 					"Authentication failed. Check your token and ensure it has read_repository scope.",
 				);
-			} else {
-				const msg =
-					err instanceof Error ? err.message : String(err);
-				new Notice(`Connection failed: ${msg}`);
-			}
+				return;
+			case "error":
+				new Notice(`Connection failed: ${result.message}`);
+				return;
 		}
 	}
 }
