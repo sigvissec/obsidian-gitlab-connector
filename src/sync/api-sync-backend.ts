@@ -38,10 +38,9 @@ export class ApiSyncBackend implements SyncBackend {
 		// Do NOT call validateToken() — it requires read_user/api scope which
 		// users are not expected to grant.
 		await this.client.validateAccess();
-		// Ensure the working branch exists; create it from the base branch if not.
-		if (this.workingBranch !== this.branch) {
-			await this.client.createBranch(this.workingBranch, this.branch);
-		}
+		// The working branch is created on the remote lazily — on the first
+		// push — so that a branch configured locally but never committed to
+		// does not clutter the remote repository.
 	}
 
 	async getRemoteFileList(subfolder?: string): Promise<RemoteFileInfo[]> {
@@ -70,8 +69,15 @@ export class ApiSyncBackend implements SyncBackend {
 	}
 
 	async getRemoteHeadSha(): Promise<string> {
-		const commit = await this.client.getLatestCommit(this.workingBranch);
-		return commit.id;
+		try {
+			const commit = await this.client.getLatestCommit(this.workingBranch);
+			return commit.id;
+		} catch (err) {
+			if (this.workingBranch === this.branch) throw err;
+			// Working branch hasn't been pushed yet — report the base branch head
+			const commit = await this.client.getLatestCommit(this.branch);
+			return commit.id;
+		}
 	}
 
 	async pushChanges(
@@ -81,6 +87,12 @@ export class ApiSyncBackend implements SyncBackend {
 		authorEmail: string,
 	): Promise<PushResult> {
 		try {
+			// Lazily create the working branch on the remote if it doesn't
+			// exist yet. createBranch no-ops when the branch already exists.
+			if (this.workingBranch !== this.branch) {
+				await this.client.createBranch(this.workingBranch, this.branch);
+			}
+
 			const actions: GitLabCommitAction[] = changes.map((change) => {
 				switch (change.type) {
 					case ChangeType.CREATED:

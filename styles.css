@@ -156,6 +156,38 @@
 	padding-bottom: 16px;
 }
 
+/* ── Create Branch Modal ─────────────────────────────────── */
+
+.glc-create-branch-modal h2 {
+	margin-top: 0;
+}
+
+.glc-create-branch-modal p {
+	color: var(--text-muted);
+}
+
+.glc-field-label {
+	display: block;
+	margin-top: 12px;
+	font-size: 0.9em;
+	color: var(--text-muted);
+}
+
+.glc-field-input {
+	display: block;
+	width: 100%;
+	margin-top: 4px;
+	padding: 6px 8px;
+	box-sizing: border-box;
+}
+
+.glc-create-branch-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 16px;
+}
+
 /* ── Initial Sync Modal ──────────────────────────────────── */
 
 .glc-initial-sync-modal h2 {

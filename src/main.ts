@@ -29,6 +29,7 @@ import { wipeFs } from "./git/fs-adapter";
 
 // UI
 import { SyncStatusDisplay } from "./ui/sync-status";
+import { CreateBranchModal } from "./ui/create-branch-modal";
 import { ensureTrailingSlash } from "./utils/path";
 
 export default class GitLabConnectorPlugin extends Plugin {
@@ -495,6 +496,14 @@ export default class GitLabConnectorPlugin extends Plugin {
 			menu.addSeparator();
 			menu.addItem((item) =>
 				item
+					.setTitle("Create new branch…")
+					.setIcon("git-branch-plus")
+					.onClick(async () => {
+						await this.promptCreateNewBranch();
+					}),
+			);
+			menu.addItem((item) =>
+				item
 					.setTitle("Refresh branch list")
 					.setIcon("refresh-cw")
 					.onClick(async () => {
@@ -504,6 +513,60 @@ export default class GitLabConnectorPlugin extends Plugin {
 		}
 
 		menu.showAtMouseEvent(evt);
+	}
+
+	/** Prompt the user for a new branch name and base, then create it locally. */
+	private async promptCreateNewBranch(): Promise<void> {
+		const defaultBase = this.settings.workingBranch || this.settings.branch;
+		const modal = new CreateBranchModal(
+			this.app,
+			this.cachedBranches,
+			defaultBase,
+		);
+		const choice = await modal.openAndWait();
+		if (!choice) return;
+		if (this.cachedBranches.includes(choice.name)) {
+			new Notice(
+				`${PLUGIN_DISPLAY_NAME}: Branch '${choice.name}' already exists — switch to it instead.`,
+			);
+			return;
+		}
+		await this.createNewWorkingBranch(choice.name, choice.base);
+	}
+
+	/**
+	 * Create a new working branch locally, based on the given base branch.
+	 * Updates settings, wipes the local repo, clears state, and re-initializes.
+	 * The branch is not pushed to the remote until the user commits and pushes.
+	 */
+	private async createNewWorkingBranch(
+		name: string,
+		base: string,
+	): Promise<void> {
+		try {
+			this.statusDisplay?.update("syncing", `Creating ${name}…`);
+			this.settings.branch = base;
+			this.settings.workingBranch = name;
+			await this.saveSettings();
+			await wipeFs();
+			await clearAllSyncState(this);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			this.statusDisplay?.update("error", msg);
+			new Notice(`${PLUGIN_DISPLAY_NAME}: Branch create failed — ${msg}`);
+			return;
+		}
+		this.initialized = false;
+		this.syncEngine = null;
+		this.stateManager = null;
+		await this.ensureInitialized();
+		// Add the new branch to the cached list so the user sees it highlighted
+		if (!this.cachedBranches.includes(name)) {
+			this.cachedBranches = [...this.cachedBranches, name].sort();
+		}
+		new Notice(
+			`${PLUGIN_DISPLAY_NAME}: Created '${name}' locally — push to publish it to GitLab.`,
+		);
 	}
 
 	/** Update the branch chip in the status bar from the actual local HEAD. */
