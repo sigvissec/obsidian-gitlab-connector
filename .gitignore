@@ -9,6 +9,9 @@ package-lock.json
 .idea/
 .vscode/
 
+# Claude Code local state (memory, scheduled tasks, plans, etc.)
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -16,5 +19,15 @@ Thumbs.db
 # Obsidian
 data.json
 
+# WDIO / Obsidian test cache
+.obsidian-cache/
+
+# Test vault: plugin + runtime files written in-place by obsidian-launcher
+# when running scripts/start-emulator.sh (copy: false mode).
+tests/e2e/vaults/*/.obsidian/plugins/
+tests/e2e/vaults/*/.obsidian/community-plugins.json
+tests/e2e/vaults/*/.obsidian/appearance.json
+
 # Temporary
 tmp_info.md
+tmp/

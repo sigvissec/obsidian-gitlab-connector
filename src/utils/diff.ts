@@ -9,6 +9,10 @@ type ParsedDiff = StructuredPatch;
 type Hunk = StructuredPatchHunk;
 import type { MergeResult } from "../types";
 
+function normalizeEol(s: string): string {
+	return s.replace(/\r\n/g, "\n");
+}
+
 /**
  * Generate a structured patch (list of hunks) between two strings.
  */
@@ -49,6 +53,12 @@ export function tryThreeWayMerge(
 	local: string,
 	remote: string,
 ): MergeResult {
+	// Normalize line endings so a platform-only CRLF↔LF change doesn't
+	// cascade into a full-file diff and escalate to a true conflict.
+	base = normalizeEol(base);
+	local = normalizeEol(local);
+	remote = normalizeEol(remote);
+
 	// Trivial cases
 	if (base === local) return { success: true, merged: remote };
 	if (base === remote) return { success: true, merged: local };

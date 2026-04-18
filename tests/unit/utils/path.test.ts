@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { remotePathToVaultPath, vaultPathToRemotePath, assertSafePath } from "../../src/utils/path";
+import { remotePathToVaultPath, vaultPathToRemotePath, assertSafePath } from "../../../src/utils/path";
 
 // ── remotePathToVaultPath ────────────────────────────────────────────────────
 

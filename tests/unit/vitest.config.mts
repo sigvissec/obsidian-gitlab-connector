@@ -8,11 +8,11 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			// Replace the real Obsidian browser bundle with a minimal Node stub
-			obsidian: resolve(__dirname, "tests/mocks/obsidian.ts"),
+			obsidian: resolve(__dirname, "mocks/obsidian.ts"),
 		},
 	},
 	test: {
 		environment: "node",
-		include: ["tests/**/*.test.ts"],
+		include: ["**/*.test.ts"],
 	},
 });
