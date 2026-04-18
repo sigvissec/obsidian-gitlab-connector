@@ -35,7 +35,13 @@ if ! "$EMULATOR" -list-avds 2>/dev/null | grep -qx "$AVD"; then
 fi
 
 # ---------------------------------------------------------------------------
-# Kill any existing emulator instance
+# Kill any existing emulator instance and wait for it to fully exit.
+#
+# `adb emu kill` asks the emulator to shut down cleanly, which includes
+# saving its snapshot — that can take 15+ seconds. Starting a new emulator
+# before the old one releases the AVD lock produces a FATAL
+# "Running multiple emulators with the same AVD" error, so we poll until
+# both ADB and the qemu process are gone (or force-kill after a timeout).
 # ---------------------------------------------------------------------------
 EXISTING=$("$ADB" devices 2>/dev/null | awk '/emulator-/{print $1}')
 if [[ -n "$EXISTING" ]]; then
@@ -45,8 +51,28 @@ if [[ -n "$EXISTING" ]]; then
   done
 fi
 
-# Also kill by process name to catch emulators that are offline/unresponsive to ADB.
-pkill -f "qemu-system.*avd\|emulator.*-avd" 2>/dev/null || true
+echo -n "Waiting for emulator to exit"
+SHUTDOWN_TIMEOUT=45
+SHUTDOWN_ELAPSED=0
+while [[ $SHUTDOWN_ELAPSED -lt $SHUTDOWN_TIMEOUT ]]; do
+  STILL_LISTED=$("$ADB" devices 2>/dev/null | awk '/emulator-/{print}' || true)
+  STILL_RUNNING=$(pgrep -f "qemu-system.*avd\|emulator.*-avd" 2>/dev/null || true)
+  if [[ -z "$STILL_LISTED" && -z "$STILL_RUNNING" ]]; then
+    break
+  fi
+  sleep 2
+  SHUTDOWN_ELAPSED=$((SHUTDOWN_ELAPSED + 2))
+  echo -n "."
+done
+echo ""
+
+# Force-kill anything that refused to exit cleanly (stale process
+# holding the AVD lock). Harmless if nothing matches.
+if pgrep -f "qemu-system.*avd\|emulator.*-avd" &>/dev/null; then
+  echo "Force-killing lingering emulator process(es)..."
+  pkill -KILL -f "qemu-system.*avd\|emulator.*-avd" 2>/dev/null || true
+  sleep 2
+fi
 
 # Reset ADB so it has a clean slate.
 "$ADB" kill-server 2>/dev/null || true
@@ -77,9 +103,14 @@ echo "Emulator PID: $EMU_PID  (log: $PROJECT_DIR/tmp/emulator-$AVD.log)"
 
 # ---------------------------------------------------------------------------
 # Wait for full boot
+#
+# A cold-boot Pixel_10 on modest hardware can take well over a minute to
+# report sys.boot_completed=1, especially after the previous emulator
+# saved a fresh snapshot. 180 seconds is comfortable for that path while
+# still failing fast if the emulator is truly stuck.
 # ---------------------------------------------------------------------------
 echo -n "Waiting for device"
-TIMEOUT=60
+TIMEOUT=180
 ELAPSED=0
 SERIAL=""
 BOOTED=""
