@@ -112,10 +112,26 @@ ANDROID_VER=$("$ADB" -s "$SERIAL" shell getprop ro.build.version.release 2>/dev/
 ANDROID_API=$("$ADB" -s "$SERIAL" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')
 echo "Device ready: $SERIAL (Android $ANDROID_VER, API $ANDROID_API)"
 
-# Give Android's PackageManager a few seconds to finish initializing after
-# sys.boot_completed=1 — otherwise Appium may fail to launch Obsidian.
+# Give Android's PackageManager and runtime services time to finish
+# initializing after sys.boot_completed=1 — otherwise Appium may fail to
+# launch Obsidian. Poll for PackageManager readiness instead of a fixed
+# sleep so we wait just as long as needed.
 echo "Waiting for Android to settle..."
-sleep 8
+SETTLE_TIMEOUT=60
+SETTLE_ELAPSED=0
+while [[ $SETTLE_ELAPSED -lt $SETTLE_TIMEOUT ]]; do
+  # PackageManager is ready once the boot animation is stopped AND
+  # pm list packages can actually respond. These are common signals Appium
+  # itself relies on before installing/launching the target app.
+  BOOT_ANIM=$("$ADB" -s "$SERIAL" shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r' || true)
+  if [[ "$BOOT_ANIM" == "stopped" ]] && \
+     "$ADB" -s "$SERIAL" shell pm list packages android &>/dev/null; then
+    sleep 3
+    break
+  fi
+  sleep 2
+  SETTLE_ELAPSED=$((SETTLE_ELAPSED + 2))
+done
 
 # ---------------------------------------------------------------------------
 # Install plugin into Obsidian via wdio-obsidian-service
