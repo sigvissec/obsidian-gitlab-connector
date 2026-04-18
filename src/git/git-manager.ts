@@ -43,6 +43,21 @@ export interface GitFileEntry {
 	oid: string;
 }
 
+/**
+ * Decode a blob as UTF-8, throwing on invalid sequences instead of silently
+ * substituting U+FFFD. Prevents binary or non-UTF-8 files from being silently
+ * corrupted when round-tripped through the sync engine.
+ */
+function decodeUtf8Strict(blob: Uint8Array, ident: string): string {
+	try {
+		return new TextDecoder("utf-8", { fatal: true }).decode(blob);
+	} catch {
+		throw new Error(
+			`File is not valid UTF-8 and cannot be synced as text: ${ident}`,
+		);
+	}
+}
+
 export class GitManager {
 	private fs: FS;
 	private dir: string;
@@ -304,7 +319,7 @@ export class GitManager {
 			filepath,
 		});
 
-		return new TextDecoder().decode(blob);
+		return decodeUtf8Strict(blob, filepath);
 	}
 
 	/**
@@ -316,7 +331,7 @@ export class GitManager {
 			dir: this.dir,
 			oid,
 		});
-		return new TextDecoder().decode(blob);
+		return decodeUtf8Strict(blob, oid);
 	}
 
 	// ── Working directory operations (for commit/push) ──────

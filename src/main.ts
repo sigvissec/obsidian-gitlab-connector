@@ -39,6 +39,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 	private autoSyncInterval: number | null = null;
 	private fileChangeDebounceTimer: number | null = null;
 	private initialized = false;
+	private unloading = false;
 	/** Branch list fetched from GitLab for the status-bar branch picker menu. */
 	private cachedBranches: string[] = [];
 
@@ -118,6 +119,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		this.unloading = true;
 		this.teardownAutoSync();
 		this.syncEngine = null;
 		this.stateManager = null;
@@ -434,11 +436,13 @@ export default class GitLabConnectorPlugin extends Plugin {
 	}
 
 	private debouncedPush(): void {
+		if (this.unloading) return;
 		if (this.fileChangeDebounceTimer !== null) {
 			window.clearTimeout(this.fileChangeDebounceTimer);
 		}
 		this.fileChangeDebounceTimer = window.setTimeout(() => {
 			this.fileChangeDebounceTimer = null;
+			if (this.unloading) return;
 			this.executePush();
 		}, FILE_CHANGE_DEBOUNCE_MS);
 	}

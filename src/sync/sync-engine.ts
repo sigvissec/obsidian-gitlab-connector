@@ -204,31 +204,31 @@ export class SyncEngine {
 			this.effectiveDotDirMap,
 		);
 
-		// 1. Apply remote-only changes (auto-update vault)
-		for (const change of changes.remoteChanges) {
-			if (change.type === ChangeType.DELETED) {
-				continue; // Handle deletions separately below
-			}
+		// 1. Apply remote-only changes (auto-update vault) in parallel
+		const remoteShaByPath = new Map(remoteFiles.map((rf) => [rf.path, rf.sha]));
+		await Promise.all(
+			changes.remoteChanges
+				.filter((c) => c.type !== ChangeType.DELETED)
+				.map(async (change) => {
+					try {
+						const content = await this.backend.getRemoteFileContent(change.path);
+						const vaultPath = remotePathToVaultPath(
+							change.path,
+							this.settings.remoteSubfolder,
+							this.settings.vaultSubfolder,
+							this.effectiveDotDirMap,
+						);
 
-			try {
-				const content = await this.backend.getRemoteFileContent(change.path);
-				const vaultPath = remotePathToVaultPath(
-					change.path,
-					this.settings.remoteSubfolder,
-					this.settings.vaultSubfolder,
-					this.effectiveDotDirMap,
-				);
+						await this.writeVaultFile(vaultPath, content);
 
-				await this.writeVaultFile(vaultPath, content);
-
-				// Update sync state only after a confirmed successful write
-				const remoteSha =
-					remoteFiles.find((rf) => rf.path === change.path)?.sha ?? "";
-				await this.updateFileState(change.path, content, remoteSha);
-			} catch (err) {
-				console.warn(`[GitLab Connector] Skipping unwritable remote file ${change.path}:`, err);
-			}
-		}
+						// Update sync state only after a confirmed successful write
+						const remoteSha = remoteShaByPath.get(change.path) ?? "";
+						await this.updateFileState(change.path, content, remoteSha);
+					} catch (err) {
+						console.warn(`[GitLab Connector] Skipping unwritable remote file ${change.path}:`, err);
+					}
+				}),
+		);
 
 		// 2. Handle remote deletions (ask user)
 		const remoteDeletions = changes.remoteChanges.filter(
@@ -407,13 +407,18 @@ export class SyncEngine {
 		);
 		const updatedByPath = new Map(updatedRemote.map((rf) => [rf.path, rf]));
 
-		for (const change of pushChanges) {
+		const hashes = await Promise.all(
+			pushChanges.map((c) =>
+				c.content ? sha256(c.content) : Promise.resolve(""),
+			),
+		);
+		for (let i = 0; i < pushChanges.length; i++) {
+			const change = pushChanges[i];
 			if (change.type === ChangeType.DELETED) {
 				this.stateManager.removeFileState(change.path);
 			} else if (change.content) {
-				const hash = await sha256(change.content);
 				this.stateManager.updateFileState(change.path, {
-					contentHash: hash,
+					contentHash: hashes[i],
 					baseContent: change.content,
 					remoteSha: updatedByPath.get(change.path)?.sha ?? "",
 					lastSynced: Date.now(),
