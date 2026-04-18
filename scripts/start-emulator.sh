@@ -165,6 +165,21 @@ while [[ $SETTLE_ELAPSED -lt $SETTLE_TIMEOUT ]]; do
 done
 
 # ---------------------------------------------------------------------------
+# Pre-warm Obsidian so Appium's subsequent launch doesn't race the cold-
+# start dex2oat pass. Without this, on a freshly-booted emulator Appium's
+# 'MainActivity never started' wait can time out even with a generous
+# appWaitDuration because the Android runtime is still optimizing system
+# services in parallel with Obsidian's first launch.
+# ---------------------------------------------------------------------------
+if "$ADB" -s "$SERIAL" shell pm path md.obsidian &>/dev/null; then
+  echo "Pre-warming Obsidian..."
+  "$ADB" -s "$SERIAL" shell am start -W -n md.obsidian/.MainActivity &>/dev/null || true
+  sleep 3
+  "$ADB" -s "$SERIAL" shell am force-stop md.obsidian &>/dev/null || true
+  sleep 2
+fi
+
+# ---------------------------------------------------------------------------
 # Install plugin into Obsidian via wdio-obsidian-service
 # ---------------------------------------------------------------------------
 echo ""
