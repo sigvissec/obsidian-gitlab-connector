@@ -96,8 +96,14 @@ echo "Building plugin..."
 # ---------------------------------------------------------------------------
 "$ADB" start-server &>/dev/null
 
+# Override RAM to 4 GB regardless of AVD config. Obsidian's Chromium
+# WebView sandbox crashes under memory pressure on 2 GB AVDs during
+# Appium's session-start force-stop+relaunch cycle; bumping RAM
+# eliminates that failure mode without requiring the user to edit
+# their AVD config. `-memory` is honoured at launch and does not
+# persist to the AVD.
 echo "Starting AVD: $AVD"
-"$EMULATOR" -avd "$AVD" -no-audio >"$PROJECT_DIR/tmp/emulator-$AVD.log" 2>&1 &
+"$EMULATOR" -avd "$AVD" -memory 4096 -no-audio >"$PROJECT_DIR/tmp/emulator-$AVD.log" 2>&1 &
 EMU_PID=$!
 echo "Emulator PID: $EMU_PID  (log: $PROJECT_DIR/tmp/emulator-$AVD.log)"
 
@@ -165,26 +171,87 @@ while [[ $SETTLE_ELAPSED -lt $SETTLE_TIMEOUT ]]; do
 done
 
 # ---------------------------------------------------------------------------
-# Pre-warm Obsidian so Appium's subsequent launch doesn't race the cold-
-# start dex2oat pass. Without this, on a freshly-booted emulator Appium's
-# 'MainActivity never started' wait can time out even with a generous
-# appWaitDuration because the Android runtime is still optimizing system
-# services in parallel with Obsidian's first launch.
+# Pre-warm Obsidian so Appium's session start doesn't race a cold launch.
+#
+# On a 2GB-RAM AVD, Android's Chrome WebView SandboxedProcessService0
+# (required by Obsidian's UI) can be unstable for several minutes after
+# boot; launches done too early cause the sandbox service to crash and
+# take the main process with it (binder error -32, "Process has died:
+# fg TOP").  The loop below retries the pre-warm until a launch survives
+# for 5 seconds, which empirically tracks when the WebView stack is ready.
+#
+# Also dex2oat is triggered synchronously with `cmd package compile -m
+# speed -f` so Obsidian's DEX is compiled before the first launch attempt.
+#
+# Do NOT `am force-stop` between a successful warmup and Appium: that
+# can interrupt lazy WebView setup.  Appium with `noReset: true` still
+# force-stops Obsidian internally when opening its session — that's OK
+# once the WebView stack has been warmed once, as the dex+odex caches
+# and sandbox process registrations persist across the force-stop.
 # ---------------------------------------------------------------------------
 if "$ADB" -s "$SERIAL" shell pm path md.obsidian &>/dev/null; then
-  echo "Pre-warming Obsidian..."
-  "$ADB" -s "$SERIAL" shell am start -W -n md.obsidian/.MainActivity &>/dev/null || true
+  echo "Pre-compiling Obsidian (dex2oat, may take ≥1 min on cold boot)..."
+  COMPILE_OUT=$("$ADB" -s "$SERIAL" shell cmd package compile -m speed -f md.obsidian 2>&1 | tr -d '\r' || true)
+  if echo "$COMPILE_OUT" | grep -q "^Success"; then
+    echo "  dex2oat done"
+  else
+    echo "  Warning: compile did not report Success:"
+    echo "$COMPILE_OUT" | sed 's/^/    /'
+  fi
+
+  echo "Pre-warming Obsidian (verifying launch survives 5s)..."
+  PREWARM_MAX_ATTEMPTS=6
+  PREWARM_ATTEMPT=0
+  PREWARM_OK=0
+  while [[ $PREWARM_ATTEMPT -lt $PREWARM_MAX_ATTEMPTS ]]; do
+    PREWARM_ATTEMPT=$((PREWARM_ATTEMPT + 1))
+    "$ADB" -s "$SERIAL" shell am force-stop md.obsidian &>/dev/null || true
+    sleep 2
+    START_OUT=$("$ADB" -s "$SERIAL" shell am start -W -n md.obsidian/.MainActivity 2>&1 | tr -d '\r' || true)
+    TOTAL_MS=$(echo "$START_OUT" | awk '/^TotalTime:/{print $2; exit}')
+    sleep 5
+    if "$ADB" -s "$SERIAL" shell pidof md.obsidian &>/dev/null; then
+      echo "  attempt $PREWARM_ATTEMPT: launch survived (TotalTime=${TOTAL_MS:-?}ms)"
+      PREWARM_OK=1
+      break
+    fi
+    echo "  attempt $PREWARM_ATTEMPT: process died within 5s — waiting 20s for services to stabilize"
+    sleep 20
+  done
+  if [[ $PREWARM_OK -eq 0 ]]; then
+    echo "  Warning: pre-warm never stabilized; Appium may still succeed"
+  fi
+
+  # Give Appium's subsequent force-stop + relaunch sequence a buffer.
   sleep 3
-  "$ADB" -s "$SERIAL" shell am force-stop md.obsidian &>/dev/null || true
-  sleep 2
 fi
 
 # ---------------------------------------------------------------------------
 # Install plugin into Obsidian via wdio-obsidian-service
+#
+# Retry on transient failure: the 2GB-RAM AVD occasionally has the
+# WebView sandbox process crash mid-session even after the pre-warm
+# stabilizes, which surfaces as "MainActivity never started" from Appium.
+# A 30-second sleep gives the sandbox service time to restart cleanly.
 # ---------------------------------------------------------------------------
 echo ""
 echo "Installing plugin into Obsidian..."
-(cd "$PROJECT_DIR" && npx wdio run ./tests/e2e/wdio.manual-setup.conf.mts 2>&1) && SETUP_OK=1 || SETUP_OK=0
+WDIO_MAX_ATTEMPTS=2
+WDIO_ATTEMPT=0
+SETUP_OK=0
+while [[ $WDIO_ATTEMPT -lt $WDIO_MAX_ATTEMPTS ]]; do
+  WDIO_ATTEMPT=$((WDIO_ATTEMPT + 1))
+  if [[ $WDIO_ATTEMPT -gt 1 ]]; then
+    echo ""
+    echo "Retrying wdio install (attempt $WDIO_ATTEMPT/$WDIO_MAX_ATTEMPTS)..."
+    "$ADB" -s "$SERIAL" shell am force-stop md.obsidian &>/dev/null || true
+    sleep 30
+  fi
+  if (cd "$PROJECT_DIR" && npx wdio run ./tests/e2e/wdio.manual-setup.conf.mts 2>&1); then
+    SETUP_OK=1
+    break
+  fi
+done
 
 if [[ $SETUP_OK -eq 0 ]]; then
   echo ""

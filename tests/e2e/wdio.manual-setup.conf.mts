@@ -44,8 +44,8 @@ export const config: WebdriverIO.Config = {
     "appium:adbExecTimeout": 120 * 1000,
     // Obsidian's MainActivity can take >20s (Appium default) on the first
     // cold launch after an emulator boot because the runtime still runs
-    // dex2oat / verifies classes. Give it up to 2 minutes.
-    "appium:appWaitDuration": 120 * 1000,
+    // dex2oat / verifies classes. 4 minutes is a safe ceiling on slow hosts.
+    "appium:appWaitDuration": 240 * 1000,
     "appium:androidInstallTimeout": 300 * 1000,
     "wdio:obsidianOptions": {
       plugins: ["../.."],
