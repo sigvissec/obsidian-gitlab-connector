@@ -169,7 +169,7 @@ done
 # ---------------------------------------------------------------------------
 echo ""
 echo "Installing plugin into Obsidian..."
-(cd "$PROJECT_DIR" && npx wdio run ./wdio.manual-setup.conf.mts 2>&1) && SETUP_OK=1 || SETUP_OK=0
+(cd "$PROJECT_DIR" && npx wdio run ./tests/e2e/wdio.manual-setup.conf.mts 2>&1) && SETUP_OK=1 || SETUP_OK=0
 
 if [[ $SETUP_OK -eq 0 ]]; then
   echo ""

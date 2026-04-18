@@ -3,6 +3,11 @@
  * Obsidian on the running emulator and leave it open for manual testing.
  *
  * Not intended for CI — use wdio.mobile.conf.mts for automated tests.
+ *
+ * Both `specs` and `wdio:obsidianOptions.vault` are resolved relative to
+ * this config file's directory. `cacheDir` (declared below with
+ * `path.resolve`) is deliberately anchored to the project root so cache
+ * hits carry across test configs.
  */
 import * as path from "path";
 import { execSync } from "child_process";
@@ -17,7 +22,7 @@ export const config: WebdriverIO.Config = {
   runner: "local",
   framework: "mocha",
 
-  specs: ["./test/specs/manual-setup.ts"],
+  specs: ["./specs/manual-setup.ts"],
 
   maxInstances: 1,
   hostname: env.APPIUM_HOST || "localhost",
@@ -43,8 +48,8 @@ export const config: WebdriverIO.Config = {
     "appium:appWaitDuration": 120 * 1000,
     "appium:androidInstallTimeout": 300 * 1000,
     "wdio:obsidianOptions": {
-      plugins: ["."],
-      vault: "test/vaults/simple",
+      plugins: ["../.."],
+      vault: "vaults/simple",
       // copy: false keeps the vault on the device after teardown so Obsidian
       // can continue using it for manual testing once WDIO exits.
       copy: false,

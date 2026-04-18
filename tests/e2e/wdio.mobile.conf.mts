@@ -22,7 +22,7 @@ export const config: WebdriverIO.Config = {
   runner: "local",
   framework: "mocha",
 
-  specs: ["./test/specs/**/*.e2e.ts"],
+  specs: ["./specs/**/*.e2e.ts"],
 
   maxInstances: 1, // Parallel tests don't work under Appium
   hostname: env.APPIUM_HOST || "localhost",
@@ -48,8 +48,8 @@ export const config: WebdriverIO.Config = {
     "appium:appWaitDuration": 120 * 1000,
     "appium:androidInstallTimeout": 300 * 1000,
     "wdio:obsidianOptions": {
-      plugins: ["."],
-      vault: "test/vaults/simple",
+      plugins: ["../.."],
+      vault: "vaults/simple",
     },
   })),
 

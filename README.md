@@ -139,19 +139,24 @@ obsidian-gitlab-connector/
 │       ├── path.ts           # Remote↔vault path translation
 │       └── hash.ts           # SHA-256 content hashing
 ├── tests/
-│   ├── git/
-│   │   └── git-manager.test.ts
-│   ├── sync/
-│   │   └── change-tracker.test.ts
-│   ├── utils/
-│   │   └── path.test.ts
-│   └── mocks/
-│       └── obsidian.ts       # Minimal Obsidian stub for Node tests
+│   ├── unit/                 # Vitest unit tests + mocks + config
+│   │   ├── git/git-manager.test.ts
+│   │   ├── sync/change-tracker.test.ts
+│   │   ├── utils/path.test.ts
+│   │   ├── mocks/obsidian.ts # Minimal Obsidian stub for Node tests
+│   │   └── vitest.config.mts
+│   └── e2e/                  # WDIO end-to-end tests + vaults + configs
+│       ├── specs/
+│       ├── vaults/simple/
+│       ├── wdio.conf.mts
+│       ├── wdio.mobile.conf.mts
+│       ├── wdio.manual-setup.conf.mts
+│       └── tsconfig.json
+├── scripts/                  # Developer scripts (e.g. start-emulator.sh)
 ├── main.js                   # Built output (committed for release)
 ├── manifest.json             # Obsidian plugin manifest
 ├── styles.css                # Plugin styles
-├── esbuild.config.mjs        # Build configuration
-└── vitest.config.mts         # Test runner configuration
+└── esbuild.config.mjs        # Build configuration
 ```
 
 ---

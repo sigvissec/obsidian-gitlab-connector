@@ -17,7 +17,7 @@ export const config: WebdriverIO.Config = {
   runner: "local",
   framework: "mocha",
 
-  specs: ["./test/specs/**/*.e2e.ts"],
+  specs: ["./specs/**/*.e2e.ts"],
 
   maxInstances: 1,
   capabilities: versions.map<WebdriverIO.Capabilities>(([appVersion, installerVersion]) => ({
@@ -25,8 +25,8 @@ export const config: WebdriverIO.Config = {
     "wdio:obsidianOptions": {
       appVersion,
       installerVersion,
-      plugins: ["."],
-      vault: "test/vaults/simple",
+      plugins: ["../.."],
+      vault: "vaults/simple",
     },
   })),
 

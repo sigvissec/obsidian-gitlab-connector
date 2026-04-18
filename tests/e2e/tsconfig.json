@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "types": ["node", "mocha", "@wdio/globals/types", "wdio-obsidian-service"],
     "module": "ESNext",
@@ -7,5 +7,10 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["test/**/*.ts", "wdio.conf.mts", "wdio.mobile.conf.mts"]
+  "include": [
+    "specs/**/*.ts",
+    "wdio.conf.mts",
+    "wdio.mobile.conf.mts",
+    "wdio.manual-setup.conf.mts"
+  ]
 }
