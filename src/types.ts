@@ -15,13 +15,6 @@ export enum SyncTrigger {
 	AUTO_TIMER = "auto-timer",
 }
 
-/** Direction of a sync operation. */
-export enum SyncDirection {
-	PULL = "pull",
-	PUSH = "push",
-	FULL = "full",
-}
-
 /** Type of change detected for a file. */
 export enum ChangeType {
 	CREATED = "created",

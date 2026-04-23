@@ -36,7 +36,7 @@ export class DeletionConfirmModal extends Modal {
 		contentEl.addClass("glc-deletion-modal");
 
 		contentEl.createEl("h2", {
-			text: "Files Deleted on Remote",
+			text: "Files deleted on remote",
 		});
 		contentEl.createEl("p", {
 			text: `${this.paths.length} file(s) were deleted on GitLab. What would you like to do with the local copies?`,
@@ -56,7 +56,7 @@ export class DeletionConfirmModal extends Modal {
 
 		const keepAllBtn = actions.createEl("button", {
 			cls: "glc-action-btn",
-			text: "Keep All Local Copies",
+			text: "Keep all local copies",
 		});
 		keepAllBtn.addEventListener("click", () => {
 			this.resolve(
@@ -67,7 +67,7 @@ export class DeletionConfirmModal extends Modal {
 
 		const deleteAllBtn = actions.createEl("button", {
 			cls: "mod-warning glc-action-btn",
-			text: "Delete All Locally",
+			text: "Delete all locally",
 		});
 		deleteAllBtn.addEventListener("click", () => {
 			this.resolve(

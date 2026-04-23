@@ -6,8 +6,8 @@
  */
 
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from "obsidian";
-import { GITLAB_API_V4, GITLAB_MAX_PER_PAGE, MARKDOWN_EXTENSION } from "../constants";
-import { encodeGitLabPath, isMarkdownFile, isInSubfolder } from "../utils/path";
+import { GITLAB_API_V4, GITLAB_MAX_PER_PAGE } from "../constants";
+import { encodeGitLabPath, isMarkdownFile } from "../utils/path";
 import type {
 	GitLabTreeItem,
 	GitLabFileMeta,

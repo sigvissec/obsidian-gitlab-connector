@@ -38,12 +38,6 @@ export const GIT_REPO_DIR = "/repo";
 /** Debounce delay in ms for file-change triggered sync. */
 export const FILE_CHANGE_DEBOUNCE_MS = 5000;
 
-/** Maximum retries for network operations. */
-export const MAX_NETWORK_RETRIES = 3;
-
-/** Base delay in ms for exponential backoff. */
-export const BACKOFF_BASE_MS = 1000;
-
 /** GitLab API version prefix. */
 export const GITLAB_API_V4 = "/api/v4";
 

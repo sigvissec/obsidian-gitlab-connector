@@ -11,10 +11,7 @@ import { ChangeType } from "../types";
 import type { StateManager, FileSyncState } from "./state-manager";
 import { sha256 } from "../utils/hash";
 import { getAllVaultMdFilePaths } from "./file-filter";
-import {
-	vaultPathToRemotePath,
-	remotePathToVaultPath,
-} from "../utils/path";
+import { vaultPathToRemotePath } from "../utils/path";
 
 export interface ChangeDetectionResult {
 	localChanges: FileChange[];
@@ -29,7 +26,6 @@ export interface ChangeDetectionResult {
  * @param vault          Obsidian vault
  * @param stateManager   Persisted sync state
  * @param remoteFiles    Current remote file list (from backend)
- * @param remoteContents Callback to lazily fetch remote file content
  * @param vaultSubfolder Vault subfolder being synced
  * @param remoteSubfolder Remote subfolder being synced
  */
@@ -37,7 +33,6 @@ export async function detectChanges(
 	vault: Vault,
 	stateManager: StateManager,
 	remoteFiles: RemoteFileInfo[],
-	remoteContents: (path: string) => Promise<string>,
 	vaultSubfolder: string,
 	remoteSubfolder: string,
 	dotDirMap: Record<string, string> = {},

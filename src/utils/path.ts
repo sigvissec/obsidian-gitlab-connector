@@ -153,28 +153,10 @@ export function vaultPathToRemotePath(
 	return relative;
 }
 
-/** Strip the subfolder prefix from a path, returning just the relative portion. */
-export function stripSubfolder(path: string, subfolder: string): string {
-	if (!subfolder) return path;
-	const prefix = ensureTrailingSlash(subfolder);
-	if (path.startsWith(prefix)) {
-		return path.slice(prefix.length);
-	}
-	return path;
-}
-
 /** Ensure a folder string ends with a trailing slash (unless empty). */
 export function ensureTrailingSlash(folder: string): string {
 	if (!folder) return "";
 	return folder.endsWith("/") ? folder : `${folder}/`;
-}
-
-/** Remove trailing slash. */
-export function removeTrailingSlash(folder: string): string {
-	if (folder.endsWith("/")) {
-		return folder.slice(0, -1);
-	}
-	return folder;
 }
 
 /**

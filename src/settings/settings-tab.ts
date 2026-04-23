@@ -40,7 +40,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// ── Connection ──────────────────────────────────────
-		containerEl.createEl("h2", { text: "Connection" });
+		new Setting(containerEl).setName("Connection").setHeading();
 
 		new Setting(containerEl)
 			.setName("GitLab URL")
@@ -56,7 +56,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Personal Access Token")
+			.setName("Personal access token")
 			.setDesc(
 				"A GitLab PAT with read_repository and write_repository scopes (git mode), or api/read_api scope (REST API mode). Stored securely using Obsidian's secret storage.",
 			)
@@ -99,7 +99,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			);
 
 		// ── Branches ────────────────────────────────────────
-		containerEl.createEl("h2", { text: "Branches" });
+		new Setting(containerEl).setName("Branches").setHeading();
 
 		// Fetch branches action
 		new Setting(containerEl)
@@ -152,7 +152,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		const workingBranchSetting = new Setting(containerEl)
 			.setName("Working branch")
 			.setDesc(
-				"Branch that local changes are pushed to. Created automatically from Branch if it does not exist. Set to the same value as Branch to push directly.",
+				"Branch that local changes are pushed to. Created automatically from the source branch if it does not exist. Set to the same value as the source branch to push directly.",
 			);
 
 		workingBranchSetting.addText((text) => {
@@ -186,7 +186,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		this.plugin.getLocalBranch().then((branch) => {
 			if (!localBranchSetting.settingEl.isConnected) return; // tab closed
 			localBranchSetting.setDesc(
-				branch ?? "Not initialized — run Initialize Connection first",
+				branch ?? "Not initialized — run initialize connection first",
 			);
 		}).catch(() => {
 			if (!localBranchSetting.settingEl.isConnected) return;
@@ -194,7 +194,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		});
 
 		// ── Sync scope ──────────────────────────────────────
-		containerEl.createEl("h2", { text: "Sync Scope" });
+		new Setting(containerEl).setName("Sync scope").setHeading();
 
 		new Setting(containerEl)
 			.setName("Remote subfolder")
@@ -284,7 +284,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		}
 
 		// ── Sync behaviour ──────────────────────────────────
-		containerEl.createEl("h2", { text: "Sync Behaviour" });
+		new Setting(containerEl).setName("Sync behaviour").setHeading();
 
 		new Setting(containerEl)
 			.setName("Sync mode")
@@ -348,7 +348,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 
 		// ── Git options (only for isomorphic-git mode) ──────
 		if (this.plugin.settings.syncMode === SyncMode.ISOMORPHIC_GIT) {
-			containerEl.createEl("h2", { text: "Git Options" });
+			new Setting(containerEl).setName("Git options").setHeading();
 
 			new Setting(containerEl)
 				.setName("Clone depth")
@@ -383,14 +383,14 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		}
 
 		// ── Author info ─────────────────────────────────────
-		containerEl.createEl("h2", { text: "Commit Author" });
+		new Setting(containerEl).setName("Commit author").setHeading();
 
 		new Setting(containerEl)
 			.setName("Author name")
 			.setDesc("Name used in git commits.")
 			.addText((text) =>
 				text
-					.setPlaceholder("Your Name")
+					.setPlaceholder("Your name")
 					.setValue(this.plugin.settings.authorName)
 					.onChange(async (value) => {
 						this.plugin.settings.authorName = value.trim();
@@ -420,7 +420,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 
 		if (!gitlabUrl || !token || !projectPath) {
 			new Notice(
-				`${PLUGIN_DISPLAY_NAME}: Please configure GitLab URL, Personal Access Token, and Project Path first.`,
+				`${PLUGIN_DISPLAY_NAME}: Please configure GitLab URL, personal access token, and project path first.`,
 			);
 			return;
 		}
@@ -453,7 +453,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 				);
 				return;
 			case "missing-credentials":
-				new Notice("Please enter both the GitLab URL and a Personal Access Token.");
+				new Notice("Please enter both the GitLab URL and a personal access token.");
 				return;
 			case "missing-project":
 				new Notice("Please enter a project path to test the connection.");

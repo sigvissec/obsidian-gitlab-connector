@@ -22,7 +22,7 @@ export function isValidBranchName(name: string): boolean {
 	if (name.includes("..") || name.includes("//")) return false;
 	if (name.includes("@{")) return false;
 	// Forbidden chars: whitespace, ~ ^ : ? * [ \ and control chars
-	if (/[\s~^:?*\[\\\x00-\x1f\x7f]/.test(name)) return false;
+	if (/[\s~^:?*[\\\u0000-\u001f\u007f]/.test(name)) return false;
 	return true;
 }
 
@@ -49,7 +49,7 @@ export class CreateBranchModal extends Modal {
 		const { contentEl } = this;
 		contentEl.addClass("glc-create-branch-modal");
 
-		contentEl.createEl("h2", { text: "Create New Branch" });
+		contentEl.createEl("h2", { text: "Create new branch" });
 		contentEl.createEl("p", {
 			text:
 				"Creates the branch locally and switches to it. The branch is" +

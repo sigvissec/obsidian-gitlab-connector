@@ -3,24 +3,9 @@
  * the user-configured subfolders.
  */
 
-import type { TFile, Vault } from "obsidian";
+import type { Vault } from "obsidian";
 import { normalizePath } from "obsidian";
 import { isMarkdownFile, ensureTrailingSlash } from "../utils/path";
-
-/**
- * Get all markdown files in the vault that are inside the given subfolder.
- * Uses Obsidian's file index — does NOT include files in hidden directories.
- */
-export function getVaultMdFiles(
-	vault: Vault,
-	vaultSubfolder: string,
-): TFile[] {
-	const allMd = vault.getMarkdownFiles();
-	if (!vaultSubfolder) return allMd;
-
-	const prefix = ensureTrailingSlash(vaultSubfolder);
-	return allMd.filter((f) => f.path.startsWith(prefix));
-}
 
 /**
  * Get all markdown file paths in the vault subfolder, including files
@@ -83,16 +68,4 @@ async function scanAdapterForMd(
 	for (const folder of listed.folders) {
 		await scanAdapterForMd(vault, folder, seen, result);
 	}
-}
-
-/**
- * Filter a list of remote paths to only markdown files inside the subfolder.
- */
-export function filterRemoteMdFiles(
-	paths: string[],
-	subfolder: string,
-): string[] {
-	return paths.filter(
-		(p) => isMarkdownFile(p) && (!subfolder || p.startsWith(ensureTrailingSlash(subfolder))),
-	);
 }

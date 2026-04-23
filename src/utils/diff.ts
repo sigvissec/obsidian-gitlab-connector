@@ -3,10 +3,7 @@
  */
 
 import { structuredPatch, createPatch, applyPatch } from "diff";
-import type { StructuredPatch, StructuredPatchHunk } from "diff";
-// Aliases for backward compatibility with the rest of the codebase
-type ParsedDiff = StructuredPatch;
-type Hunk = StructuredPatchHunk;
+import type { StructuredPatch } from "diff";
 import type { MergeResult } from "../types";
 
 function normalizeEol(s: string): string {
@@ -16,27 +13,12 @@ function normalizeEol(s: string): string {
 /**
  * Generate a structured patch (list of hunks) between two strings.
  */
-export function generateStructuredDiff(
+function generateStructuredDiff(
 	oldText: string,
 	newText: string,
 	filename = "file.md",
-): ParsedDiff {
+): StructuredPatch {
 	return structuredPatch(filename, filename, oldText, newText, "", "", {
-		context: 3,
-	});
-}
-
-/**
- * Generate a unified diff string (like `diff -u`) between two texts.
- */
-export function generateUnifiedDiff(
-	oldText: string,
-	newText: string,
-	filename = "file.md",
-	oldHeader = "base",
-	newHeader = "modified",
-): string {
-	return createPatch(filename, oldText, newText, oldHeader, newHeader, {
 		context: 3,
 	});
 }
@@ -85,49 +67,6 @@ export function tryThreeWayMerge(
 }
 
 /**
- * Generate HTML for a unified diff view.
- *
- * Returns a `<div>` containing coloured lines suitable for rendering
- * inside an Obsidian modal.
- */
-export function generateDiffHtml(
-	oldText: string,
-	newText: string,
-	filename = "file.md",
-): string {
-	const patch = generateStructuredDiff(oldText, newText, filename);
-	const lines: string[] = [];
-
-	lines.push('<div class="glc-diff">');
-
-	for (const hunk of patch.hunks) {
-		lines.push(
-			`<div class="glc-diff-hunk-header">@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@</div>`,
-		);
-		for (const line of hunk.lines) {
-			const prefix = line.charAt(0);
-			const content = escapeHtml(line.slice(1));
-			if (prefix === "+") {
-				lines.push(
-					`<div class="glc-diff-line glc-diff-added">+ ${content}</div>`,
-				);
-			} else if (prefix === "-") {
-				lines.push(
-					`<div class="glc-diff-line glc-diff-removed">- ${content}</div>`,
-				);
-			} else {
-				lines.push(
-					`<div class="glc-diff-line glc-diff-context">  ${content}</div>`,
-				);
-			}
-		}
-	}
-
-	lines.push("</div>");
-	return lines.join("\n");
-}
-
-/**
  * Create conflict-marker text (<<<<<<< / ======= / >>>>>>>) for manual editing.
  */
 export function createConflictMarkers(
@@ -141,11 +80,6 @@ export function createConflictMarkers(
 		remote,
 		">>>>>>> REMOTE (GitLab)",
 	].join("\n");
-}
-
-/** Count the number of change hunks in a diff. */
-export function countChanges(patch: ParsedDiff): number {
-	return patch.hunks.length;
 }
 
 /**
@@ -185,13 +119,3 @@ export function renderDiffToContainer(
 	}
 }
 
-/** Escape HTML special characters. */
-function escapeHtml(text: string): string {
-	return text
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
-}
-
-export type { ParsedDiff, Hunk, StructuredPatch, StructuredPatchHunk };
