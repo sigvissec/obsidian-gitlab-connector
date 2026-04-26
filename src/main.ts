@@ -134,15 +134,17 @@ export default class GitLabConnectorPlugin extends Plugin {
 	// ── Settings ────────────────────────────────────────────
 
 	async loadSettings(): Promise<void> {
-		const data = await this.loadData();
-		const rawSettings = { ...(data?.settings ?? {}) };
+		const data = (await this.loadData()) as Record<string, unknown> | null;
+		const storedSettings =
+			(data?.settings as Record<string, unknown> | undefined) ?? {};
+		const rawSettings: Record<string, unknown> = { ...storedSettings };
 
 		// One-time migration: if a plaintext PAT exists in data.json, move it to SecretStorage
-		const legacyPat = (rawSettings as Record<string, unknown>).personalAccessToken as string | undefined;
+		const legacyPat = rawSettings.personalAccessToken as string | undefined;
 		if (legacyPat) {
 			this.app.secretStorage.setSecret(PAT_SECRET_KEY, legacyPat);
-			delete (rawSettings as Record<string, unknown>).personalAccessToken;
-			const cleaned = data ?? {};
+			delete rawSettings.personalAccessToken;
+			const cleaned: Record<string, unknown> = data ?? {};
 			cleaned.settings = rawSettings;
 			await this.saveData(cleaned);
 		}
@@ -151,7 +153,8 @@ export default class GitLabConnectorPlugin extends Plugin {
 	}
 
 	async saveSettings(): Promise<void> {
-		const allData = (await this.loadData()) ?? {};
+		const allData =
+			((await this.loadData()) as Record<string, unknown> | null) ?? {};
 		allData.settings = this.settings;
 		await this.saveData(allData);
 
@@ -292,7 +295,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 		try {
 			this.statusDisplay?.update("syncing", "Resetting...");
 			// Wipe the local git repository so it will be re-cloned with current settings
-			await wipeFs();
+			wipeFs();
 			// Clear persisted sync state so the first-sync modal appears again
 			await clearAllSyncState(this);
 		} catch (err) {
@@ -388,10 +391,10 @@ export default class GitLabConnectorPlugin extends Plugin {
 			const intervalMs =
 				this.settings.syncIntervalMinutes * 60 * 1000;
 			this.autoSyncInterval = this.registerInterval(
-				window.setInterval(() => {
+				activeWindow.setInterval(() => {
 					void this.executeFullSync();
 				}, intervalMs),
-			) as unknown as number;
+			);
 		}
 
 		if (this.settings.syncTrigger === SyncTrigger.FILE_CHANGE) {
@@ -432,11 +435,11 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 	private teardownAutoSync(): void {
 		if (this.autoSyncInterval !== null) {
-			window.clearInterval(this.autoSyncInterval);
+			activeWindow.clearInterval(this.autoSyncInterval);
 			this.autoSyncInterval = null;
 		}
 		if (this.fileChangeDebounceTimer !== null) {
-			window.clearTimeout(this.fileChangeDebounceTimer);
+			activeWindow.clearTimeout(this.fileChangeDebounceTimer);
 			this.fileChangeDebounceTimer = null;
 		}
 	}
@@ -444,9 +447,9 @@ export default class GitLabConnectorPlugin extends Plugin {
 	private debouncedPush(): void {
 		if (this.unloading) return;
 		if (this.fileChangeDebounceTimer !== null) {
-			window.clearTimeout(this.fileChangeDebounceTimer);
+			activeWindow.clearTimeout(this.fileChangeDebounceTimer);
 		}
-		this.fileChangeDebounceTimer = window.setTimeout(() => {
+		this.fileChangeDebounceTimer = activeWindow.setTimeout(() => {
 			this.fileChangeDebounceTimer = null;
 			if (this.unloading) return;
 			void this.executePush();
@@ -555,7 +558,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 			this.settings.branch = base;
 			this.settings.workingBranch = name;
 			await this.saveSettings();
-			await wipeFs();
+			wipeFs();
 			await clearAllSyncState(this);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
@@ -636,7 +639,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 			this.statusDisplay?.update("syncing", `Switching to ${branch}…`);
 			this.settings.workingBranch = branch;
 			await this.saveSettings();
-			await wipeFs();
+			wipeFs();
 			await clearAllSyncState(this);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
@@ -673,7 +676,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 	/** Reset the local git repository (wipe LightningFS and re-clone). */
 	async resetGitRepo(): Promise<void> {
-		await wipeFs();
+		wipeFs();
 		this.initialized = false;
 		this.syncEngine = null;
 		this.stateManager = null;
