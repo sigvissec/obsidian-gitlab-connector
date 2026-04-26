@@ -8,33 +8,28 @@
 import type { App, Vault } from "obsidian";
 import { normalizePath, Notice } from "obsidian";
 import type { SyncBackend } from "./sync-backend";
-import { StateManager, FileSyncState } from "./state-manager";
-import { detectChanges, ChangeDetectionResult } from "./change-tracker";
+import { StateManager } from "./state-manager";
+import { detectChanges } from "./change-tracker";
 import { classifyConflicts } from "./conflict-detector";
 import { sha256 } from "../utils/hash";
 import {
 	remotePathToVaultPath,
 	vaultPathToRemotePath,
-	ensureTrailingSlash,
 } from "../utils/path";
 import { getAllVaultMdFilePaths } from "./file-filter";
 import type {
 	FileChange,
-	ConflictInfo,
 	ResolvedConflict,
-	PushResult,
-	CommitSelection,
 } from "../types";
 import {
 	ChangeType,
 	ConflictKind,
 	ConflictResolution,
 	InitialSyncDirection,
-	SyncDirection,
 } from "../types";
 import { ConflictModal } from "../ui/conflict-modal";
 import { CommitModal } from "../ui/commit-modal";
-import { DeletionConfirmModal, DeletionChoice } from "../ui/deletion-confirm-modal";
+import { DeletionConfirmModal } from "../ui/deletion-confirm-modal";
 import { InitialSyncModal } from "../ui/initial-sync-modal";
 import { SyncProgressModal } from "../ui/sync-progress-modal";
 import type { GitLabConnectorSettings } from "../settings/settings";
@@ -198,7 +193,6 @@ export class SyncEngine {
 			this.vault,
 			this.stateManager,
 			remoteFiles,
-			(path) => this.backend.getRemoteFileContent(path),
 			this.settings.vaultSubfolder,
 			this.settings.remoteSubfolder,
 			this.effectiveDotDirMap,
@@ -248,7 +242,7 @@ export class SyncEngine {
 					);
 					const file = this.vault.getFileByPath(vaultPath);
 					if (file) {
-						await this.vault.trash(file, true);
+						await this.app.fileManager.trashFile(file);
 					} else {
 						try {
 							await this.vault.adapter.remove(normalizePath(vaultPath));
@@ -333,7 +327,6 @@ export class SyncEngine {
 			this.vault,
 			this.stateManager,
 			remoteFiles,
-			(path) => this.backend.getRemoteFileContent(path),
 			this.settings.vaultSubfolder,
 			this.settings.remoteSubfolder,
 			this.effectiveDotDirMap,
@@ -441,7 +434,6 @@ export class SyncEngine {
 			this.vault,
 			this.stateManager,
 			remoteFiles,
-			(path) => this.backend.getRemoteFileContent(path),
 			this.settings.vaultSubfolder,
 			this.settings.remoteSubfolder,
 			this.effectiveDotDirMap,
@@ -671,7 +663,6 @@ export class SyncEngine {
 				this.settings.vaultSubfolder,
 				this.effectiveDotDirMap,
 			);
-			const file = this.vault.getFileByPath(vaultPath);
 
 			if (res.content !== undefined) {
 				await this.writeVaultFile(vaultPath, res.content);

@@ -34,13 +34,8 @@ export function getRepoDir(): string {
  * Wipe the entire LightningFS database.
  * Used when the user wants to reset and re-clone.
  */
-export async function wipeFs(): Promise<void> {
-	if (fsInstance) {
-		// Re-initialize with wipe flag
-		fsInstance = new FS(LIGHTNING_FS_DB_NAME, { wipe: true });
-	} else {
-		fsInstance = new FS(LIGHTNING_FS_DB_NAME, { wipe: true });
-	}
+export function wipeFs(): void {
+	fsInstance = new FS(LIGHTNING_FS_DB_NAME, { wipe: true });
 }
 
 /**
@@ -49,7 +44,7 @@ export async function wipeFs(): Promise<void> {
 export async function repoExists(): Promise<boolean> {
 	const fs = getFs();
 	try {
-		const stat = await fs.promises.stat(GIT_REPO_DIR);
+		await fs.promises.stat(GIT_REPO_DIR);
 		// Also verify .git exists inside it
 		await fs.promises.stat(`${GIT_REPO_DIR}/.git`);
 		return true;

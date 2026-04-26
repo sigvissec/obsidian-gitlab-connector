@@ -7,11 +7,10 @@
  * buttons at the bottom.
  */
 
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal } from "obsidian";
 import type { ConflictInfo, ResolvedConflict } from "../types";
 import { ConflictKind, ConflictResolution } from "../types";
 import { renderDiffToContainer, createConflictMarkers } from "../utils/diff";
-import { PLUGIN_DISPLAY_NAME } from "../constants";
 
 export class ConflictModal extends Modal {
 	private conflicts: ConflictInfo[];
@@ -100,7 +99,7 @@ export class ConflictModal extends Modal {
 		if (conflict.kind === ConflictKind.AUTO_MERGEABLE) {
 			const mergeBtn = actions.createEl("button", {
 				cls: "mod-cta glc-action-btn",
-				text: "Auto-Merge",
+				text: "Auto-merge",
 			});
 			mergeBtn.addEventListener("click", () => {
 				this.resolveConflict({
@@ -113,7 +112,7 @@ export class ConflictModal extends Modal {
 
 		const keepMineBtn = actions.createEl("button", {
 			cls: "glc-action-btn",
-			text: "Keep Mine",
+			text: "Keep mine",
 		});
 		keepMineBtn.addEventListener("click", () => {
 			this.resolveConflict({
@@ -125,7 +124,7 @@ export class ConflictModal extends Modal {
 
 		const keepTheirsBtn = actions.createEl("button", {
 			cls: "glc-action-btn",
-			text: "Keep Theirs",
+			text: "Keep theirs",
 		});
 		keepTheirsBtn.addEventListener("click", () => {
 			this.resolveConflict({
@@ -137,7 +136,7 @@ export class ConflictModal extends Modal {
 
 		const editBtn = actions.createEl("button", {
 			cls: "glc-action-btn",
-			text: "Edit Manually",
+			text: "Edit manually",
 		});
 		editBtn.addEventListener("click", () => {
 			this.resolveConflict({

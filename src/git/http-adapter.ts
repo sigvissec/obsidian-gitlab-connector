@@ -45,10 +45,12 @@ export const httpAdapter = {
 			responseHeaders[key.toLowerCase()] = value;
 		}
 
-		// Wrap the buffered response body as an async generator
+		// Wrap the buffered response body as an async generator.
+		// The explicit await keeps the body consumer truly async even though
+		// the payload is already resident in memory.
 		const buf = response.arrayBuffer;
 		async function* bodyStream(): AsyncGenerator<Uint8Array> {
-			yield new Uint8Array(buf);
+			yield await Promise.resolve(new Uint8Array(buf));
 		}
 
 		return {

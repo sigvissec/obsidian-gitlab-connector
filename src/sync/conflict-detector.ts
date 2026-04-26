@@ -11,7 +11,7 @@ import { ConflictKind } from "../types";
 import type { StateManager } from "./state-manager";
 import type { SyncBackend } from "./sync-backend";
 import { tryThreeWayMerge } from "../utils/diff";
-import { vaultPathToRemotePath, remotePathToVaultPath } from "../utils/path";
+import { remotePathToVaultPath } from "../utils/path";
 
 /**
  * For each path that changed on both sides, fetch the three versions

@@ -36,7 +36,7 @@ export class InitialSyncModal extends Modal {
 		const { contentEl } = this;
 		contentEl.addClass("glc-initial-sync-modal");
 
-		contentEl.createEl("h2", { text: "First-Time Sync" });
+		contentEl.createEl("h2", { text: "First-time sync" });
 
 		const desc: string[] = [];
 		if (this.hasRemoteFiles && this.hasLocalFiles) {
@@ -67,7 +67,7 @@ export class InitialSyncModal extends Modal {
 		if (this.hasRemoteFiles) {
 			const pullBtn = actions.createEl("button", {
 				cls: "mod-cta glc-action-btn",
-				text: "Pull Remote Files to Vault",
+				text: "Pull remote files to vault",
 			});
 			pullBtn.addEventListener("click", () => {
 				this.resolve(InitialSyncDirection.PULL_REMOTE);
@@ -78,7 +78,7 @@ export class InitialSyncModal extends Modal {
 		if (this.hasLocalFiles) {
 			const pushBtn = actions.createEl("button", {
 				cls: "mod-cta glc-action-btn",
-				text: "Push Local Files to GitLab",
+				text: "Push local files to GitLab",
 			});
 			pushBtn.addEventListener("click", () => {
 				this.resolve(InitialSyncDirection.PUSH_LOCAL);

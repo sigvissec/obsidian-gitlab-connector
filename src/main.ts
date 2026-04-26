@@ -55,7 +55,9 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 		// Status display
 		this.statusDisplay = new SyncStatusDisplay(this);
-		this.statusDisplay.setClickHandler((evt) => this.showBranchMenu(evt));
+		this.statusDisplay.setClickHandler((evt) => {
+			void this.showBranchMenu(evt);
+		});
 
 		// Commands
 		this.addCommand({
@@ -98,19 +100,21 @@ export default class GitLabConnectorPlugin extends Plugin {
 				item.setTitle("Push").setIcon("upload").onClick(() => this.executePush()),
 			);
 			menu.addItem((item) =>
-				item.setTitle("Full Sync").setIcon("refresh-cw").onClick(() => this.executeFullSync()),
+				item.setTitle("Full sync").setIcon("refresh-cw").onClick(() => this.executeFullSync()),
 			);
 			menu.addItem((item) =>
 				item
-					.setTitle("Commit & Push Selected Files")
+					.setTitle("Commit & push selected files")
 					.setIcon("git-commit")
 					.onClick(() => this.executeCommitAndPush()),
 			);
 			menu.addItem((item) =>
 				item
-					.setTitle("Switch Branch")
+					.setTitle("Switch branch")
 					.setIcon("git-branch-plus")
-					.onClick((evt) => this.showBranchMenu(evt as MouseEvent)),
+					.onClick((evt) => {
+						void this.showBranchMenu(evt as MouseEvent);
+					}),
 			);
 			menu.addSeparator();
 			menu.addItem((item) =>
@@ -385,7 +389,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 				this.settings.syncIntervalMinutes * 60 * 1000;
 			this.autoSyncInterval = this.registerInterval(
 				window.setInterval(() => {
-					this.executeFullSync();
+					void this.executeFullSync();
 				}, intervalMs),
 			) as unknown as number;
 		}
@@ -445,7 +449,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 		this.fileChangeDebounceTimer = window.setTimeout(() => {
 			this.fileChangeDebounceTimer = null;
 			if (this.unloading) return;
-			this.executePush();
+			void this.executePush();
 		}, FILE_CHANGE_DEBOUNCE_MS);
 	}
 
@@ -457,8 +461,10 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 	// ── Branch picker (status bar) ──────────────────────────
 
-	private showBranchMenu(evt: MouseEvent): void {
-		const current = this.settings.workingBranch || this.settings.branch;
+	private async showBranchMenu(evt: MouseEvent): Promise<void> {
+		const live = await this.getLocalBranch();
+		const current =
+			live ?? this.settings.workingBranch ?? this.settings.branch;
 		const menu = new Menu();
 
 		if (this.cachedBranches.length === 0) {

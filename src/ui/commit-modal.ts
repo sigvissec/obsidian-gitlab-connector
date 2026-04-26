@@ -9,7 +9,6 @@
 import { App, Modal } from "obsidian";
 import type { FileChange, CommitSelection } from "../types";
 import { ChangeType } from "../types";
-import { PLUGIN_DISPLAY_NAME } from "../constants";
 
 export class CommitModal extends Modal {
 	private changes: FileChange[];
@@ -51,7 +50,7 @@ export class CommitModal extends Modal {
 		contentEl.empty();
 
 		// ── Header ──────────────────────────────────────────
-		contentEl.createEl("h2", { text: "Commit & Push" });
+		contentEl.createEl("h2", { text: "Commit & push" });
 		contentEl.createEl("p", {
 			cls: "glc-commit-subtitle",
 			text: `${this.changes.length} local change(s) detected. Select files to include.`,
@@ -84,12 +83,12 @@ export class CommitModal extends Modal {
 		const selectionRow = contentEl.createDiv("glc-commit-selection-row");
 		const selectAllBtn = selectionRow.createEl("button", {
 			cls: "glc-link-btn",
-			text: "Select All",
+			text: "Select all",
 		});
 		selectionRow.createEl("span", { text: " · " });
 		const deselectAllBtn = selectionRow.createEl("button", {
 			cls: "glc-link-btn",
-			text: "Deselect All",
+			text: "Deselect all",
 		});
 
 		selectAllBtn.addEventListener("click", () => {
@@ -124,7 +123,7 @@ export class CommitModal extends Modal {
 
 		const pushBtn = actions.createEl("button", {
 			cls: "mod-cta glc-action-btn",
-			text: "Commit & Push",
+			text: "Commit & push",
 		});
 		pushBtn.addEventListener("click", () => {
 			const selected = this.changes.filter((_, i) => checkboxes[i].checked);

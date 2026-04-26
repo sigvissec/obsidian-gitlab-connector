@@ -10,7 +10,7 @@ import { Notice, Plugin } from "obsidian";
 import { isMobile } from "../utils/platform";
 import { PLUGIN_DISPLAY_NAME } from "../constants";
 
-export type SyncStatusState =
+type SyncStatusState =
 	| "idle"
 	| "syncing"
 	| "success"
@@ -18,7 +18,6 @@ export type SyncStatusState =
 	| "offline";
 
 export class SyncStatusDisplay {
-	private plugin: Plugin;
 	private statusBarEl: HTMLElement | null = null;
 	private currentState: SyncStatusState = "idle";
 	private currentDetail: string | undefined;
@@ -26,11 +25,10 @@ export class SyncStatusDisplay {
 	private clickHandler: ((evt: MouseEvent) => void) | null = null;
 
 	constructor(plugin: Plugin) {
-		this.plugin = plugin;
 		if (!isMobile()) {
 			this.statusBarEl = plugin.addStatusBarItem();
 			this.statusBarEl.addClass("mod-clickable");
-			this.statusBarEl.title = "GitLab Connector — click to switch branch";
+			this.statusBarEl.title = "GitLab connector — click to switch branch";
 			this.statusBarEl.addEventListener("click", (evt) => {
 				this.clickHandler?.(evt);
 			});

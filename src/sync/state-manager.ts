@@ -21,7 +21,7 @@ export interface FileSyncState {
 }
 
 /** Top-level sync state persisted to disk. */
-export interface SyncState {
+interface SyncState {
 	/** Timestamp of the last full sync operation. */
 	lastSyncTimestamp: number;
 	/** HEAD commit SHA on the remote at last sync. */

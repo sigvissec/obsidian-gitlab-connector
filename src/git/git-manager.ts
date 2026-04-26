@@ -36,7 +36,7 @@ export interface GitManagerConfig {
 }
 
 /** Entry returned by listMdFiles. */
-export interface GitFileEntry {
+interface GitFileEntry {
 	/** Path relative to the repo root. */
 	path: string;
 	/** Git object ID (SHA) of the blob. */
