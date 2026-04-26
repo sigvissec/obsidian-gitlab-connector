@@ -675,7 +675,7 @@ export default class GitLabConnectorPlugin extends Plugin {
 	}
 
 	/** Reset the local git repository (wipe LightningFS and re-clone). */
-	async resetGitRepo(): Promise<void> {
+	resetGitRepo(): void {
 		wipeFs();
 		this.initialized = false;
 		this.syncEngine = null;

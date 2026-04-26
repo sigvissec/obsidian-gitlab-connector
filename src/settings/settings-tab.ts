@@ -58,7 +58,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Personal access token")
 			.setDesc(
-				"A GitLab pat with read_repository and write_repository scopes (Git mode), or API/read_API scope (rest API mode). Stored securely using Obsidian's secret storage.",
+				"A GitLab personal access token with read_repository and write_repository scopes (Git mode), or API/read_API scope (rest API mode). Stored securely using Obsidian's secret storage.",
 			)
 			.addText((text) => {
 				text.inputEl.type = "password";
@@ -376,7 +376,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 						.setButtonText("Reset")
 						.setWarning()
 						.onClick(async () => {
-							await this.plugin.resetGitRepo();
+							this.plugin.resetGitRepo();
 							new Notice("Local Git repository has been reset.");
 						}),
 				);
@@ -403,7 +403,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			.setDesc("Email used in Git commits.")
 			.addText((text) =>
 				text
-					.setPlaceholder("you@example.com")
+					.setPlaceholder("name@example.com")
 					.setValue(this.plugin.settings.authorEmail)
 					.onChange(async (value) => {
 						this.plugin.settings.authorEmail = value.trim();
