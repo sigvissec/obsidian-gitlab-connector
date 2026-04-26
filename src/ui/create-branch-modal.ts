@@ -22,7 +22,7 @@ function isValidBranchName(name: string): boolean {
 	if (name.includes("..") || name.includes("//")) return false;
 	if (name.includes("@{")) return false;
 	// Forbidden chars: whitespace, ~ ^ : ? * [ \ and control chars
-	if (/[\s~^:?*[\\\u0000-\u001f\u007f]/.test(name)) return false;
+	if (/[\s~^:?*[\\]|\p{Cc}/u.test(name)) return false;
 	return true;
 }
 

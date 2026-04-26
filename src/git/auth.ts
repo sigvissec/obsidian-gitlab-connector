@@ -37,6 +37,6 @@ export function createAuthFailureCallback(
 		if (onFailure) {
 			onFailure(url);
 		}
-		return undefined as unknown as void;
+		return undefined;
 	};
 }

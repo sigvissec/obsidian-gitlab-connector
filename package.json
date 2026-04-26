@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"lint": "eslint src",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"test": "run-s test:unit test:e2e",
 		"test:unit": "vitest run -c tests/unit/vitest.config.mts",
@@ -34,6 +35,7 @@
 		"appium": "^3.3.0",
 		"appium-uiautomator2-driver": "^7.1.2",
 		"esbuild": "^0.28.0",
+		"eslint-plugin-obsidianmd": "^0.2.4",
 		"memfs": "^4.57.1",
 		"mocha": "^11.7.5",
 		"npm-run-all2": "^8.0.4",
@@ -41,6 +43,7 @@
 		"obsidian-launcher": "^3.0.2",
 		"tsx": "^4.21.0",
 		"typescript": "^5.5.0",
+		"typescript-eslint": "^8.59.0",
 		"vitest": "^4.1.4",
 		"wdio-obsidian-reporter": "^3.0.2",
 		"wdio-obsidian-service": "^3.0.2"

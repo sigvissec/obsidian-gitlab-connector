@@ -104,7 +104,7 @@ export class GitManager {
 	async clone(
 		onProgress?: (phase: string, loaded: number, total: number) => void,
 	): Promise<void> {
-		await wipeFs();
+		wipeFs();
 		// Re-acquire fs after wipe
 		this.fs = getFs();
 		await ensureRepoDir();

@@ -43,6 +43,9 @@ const EMPTY_STATE: SyncState = {
 const STATE_KEY_GIT = "syncState_git";
 const STATE_KEY_API = "syncState_api";
 
+/** Shape of the plugin's persisted data.json blob. */
+type PersistedData = Record<string, unknown>;
+
 export class StateManager {
 	private plugin: Plugin;
 	private stateKey: string;
@@ -56,9 +59,10 @@ export class StateManager {
 
 	/** Load state from disk. Call once during plugin initialisation. */
 	async load(): Promise<void> {
-		const allData = await this.plugin.loadData();
-		if (allData && allData[this.stateKey]) {
-			this.state = allData[this.stateKey] as SyncState;
+		const allData = (await this.plugin.loadData()) as PersistedData | null;
+		const stored = allData?.[this.stateKey];
+		if (stored && typeof stored === "object") {
+			this.state = stored as SyncState;
 			// Ensure the files object exists (defensive)
 			if (!this.state.files) {
 				this.state.files = {};
@@ -68,7 +72,7 @@ export class StateManager {
 
 	/** Persist current state to disk. */
 	async save(): Promise<void> {
-		const allData = (await this.plugin.loadData()) ?? {};
+		const allData = ((await this.plugin.loadData()) as PersistedData | null) ?? {};
 		allData[this.stateKey] = this.state;
 		await this.plugin.saveData(allData);
 	}
@@ -124,7 +128,7 @@ export class StateManager {
  * Used during re-initialization so the first-sync modal appears again.
  */
 export async function clearAllSyncState(plugin: Plugin): Promise<void> {
-	const allData = (await plugin.loadData()) ?? {};
+	const allData = ((await plugin.loadData()) as PersistedData | null) ?? {};
 	delete allData[STATE_KEY_GIT];
 	delete allData[STATE_KEY_API];
 	await plugin.saveData(allData);

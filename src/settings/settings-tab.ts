@@ -58,7 +58,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Personal access token")
 			.setDesc(
-				"A GitLab PAT with read_repository and write_repository scopes (git mode), or api/read_api scope (REST API mode). Stored securely using Obsidian's secret storage.",
+				"A GitLab pat with read_repository and write_repository scopes (Git mode), or API/read_API scope (rest API mode). Stored securely using Obsidian's secret storage.",
 			)
 			.addText((text) => {
 				text.inputEl.type = "password";
@@ -90,7 +90,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("user/repository")
+					.setPlaceholder("User/repository")
 					.setValue(this.plugin.settings.projectPath)
 					.onChange(async (value) => {
 						this.plugin.settings.projectPath = value.trim();
@@ -139,7 +139,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		} else {
 			branchSetting.addText((text) =>
 				text
-					.setPlaceholder("main")
+					.setPlaceholder("Main")
 					.setValue(this.plugin.settings.branch)
 					.onChange(async (value) => {
 						this.plugin.settings.branch = value.trim();
@@ -170,7 +170,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 				text.inputEl.setAttribute("list", listId);
 			}
 			text
-				.setPlaceholder("obsidian-plugin")
+				.setPlaceholder("Obsidian-plugin")
 				.setValue(this.plugin.settings.workingBranch)
 				.onChange(async (value) => {
 					this.plugin.settings.workingBranch = value.trim();
@@ -214,11 +214,11 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Vault subfolder")
 			.setDesc(
-				'Subfolder inside your vault where synced files will live. Example: "gitlab-notes".',
+				'Subfolder inside your vault where synced files will live. Example: "GitLab-notes".',
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("gitlab-notes")
+					.setPlaceholder("GitLab-notes")
 					.setValue(this.plugin.settings.vaultSubfolder)
 					.onChange(async (value) => {
 						this.plugin.settings.vaultSubfolder = value.trim();
@@ -289,12 +289,12 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Sync mode")
 			.setDesc(
-				"isomorphic-git: full git operations, supports offline commits (not recommended on mobile — clones the entire repo into device storage). REST API: lightweight, stateless, recommended for mobile and Android.",
+				"Isomorphic-Git: full Git operations, supports offline commits (not recommended on mobile — clones the entire repo into device storage). Rest API: lightweight, stateless, recommended for mobile and Android.",
 			)
 			.addDropdown((dd) =>
 				dd
-					.addOption(SyncMode.ISOMORPHIC_GIT, "isomorphic-git (offline capable)")
-					.addOption(SyncMode.REST_API, "REST API (lightweight)")
+					.addOption(SyncMode.ISOMORPHIC_GIT, "Isomorphic-Git (offline capable)")
+					.addOption(SyncMode.REST_API, "Rest API (lightweight)")
 					.setValue(this.plugin.settings.syncMode)
 					.onChange(async (value) => {
 						this.plugin.settings.syncMode = value as SyncMode;
@@ -346,9 +346,9 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 				);
 		}
 
-		// ── Git options (only for isomorphic-git mode) ──────
+		// ── Git (only for isomorphic-git mode) ──────────────
 		if (this.plugin.settings.syncMode === SyncMode.ISOMORPHIC_GIT) {
-			new Setting(containerEl).setName("Git options").setHeading();
+			new Setting(containerEl).setName("Git").setHeading();
 
 			new Setting(containerEl)
 				.setName("Clone depth")
@@ -369,7 +369,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName("Reset local repository")
 				.setDesc(
-					"Delete the local git repository and re-clone on next sync. Use if you encounter corruption.",
+					"Delete the local Git repository and re-clone on next sync. Use if you encounter corruption.",
 				)
 				.addButton((btn) =>
 					btn
@@ -377,7 +377,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 						.setWarning()
 						.onClick(async () => {
 							await this.plugin.resetGitRepo();
-							new Notice("Local git repository has been reset.");
+							new Notice("Local Git repository has been reset.");
 						}),
 				);
 		}
@@ -387,7 +387,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Author name")
-			.setDesc("Name used in git commits.")
+			.setDesc("Name used in Git commits.")
 			.addText((text) =>
 				text
 					.setPlaceholder("Your name")
@@ -400,7 +400,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Author email")
-			.setDesc("Email used in git commits.")
+			.setDesc("Email used in Git commits.")
 			.addText((text) =>
 				text
 					.setPlaceholder("you@example.com")
