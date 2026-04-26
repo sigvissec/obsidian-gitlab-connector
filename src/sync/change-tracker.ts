@@ -13,7 +13,7 @@ import { sha256 } from "../utils/hash";
 import { getAllVaultMdFilePaths } from "./file-filter";
 import { vaultPathToRemotePath } from "../utils/path";
 
-export interface ChangeDetectionResult {
+interface ChangeDetectionResult {
 	localChanges: FileChange[];
 	remoteChanges: FileChange[];
 	/** Files changed both locally and remotely (need conflict resolution). */

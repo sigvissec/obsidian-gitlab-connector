@@ -10,7 +10,7 @@ import { Notice, Plugin } from "obsidian";
 import { isMobile } from "../utils/platform";
 import { PLUGIN_DISPLAY_NAME } from "../constants";
 
-export type SyncStatusState =
+type SyncStatusState =
 	| "idle"
 	| "syncing"
 	| "success"

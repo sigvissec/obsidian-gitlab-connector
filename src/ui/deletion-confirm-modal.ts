@@ -8,7 +8,7 @@
 
 import { App, Modal } from "obsidian";
 
-export interface DeletionChoice {
+interface DeletionChoice {
 	path: string;
 	/** True = delete locally, false = keep local copy. */
 	deleteLocally: boolean;

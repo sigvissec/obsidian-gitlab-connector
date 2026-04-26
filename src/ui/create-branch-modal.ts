@@ -8,13 +8,13 @@
 
 import { App, Modal, Notice } from "obsidian";
 
-export interface NewBranchChoice {
+interface NewBranchChoice {
 	name: string;
 	base: string;
 }
 
 /** Validate a branch name against the common git rules. */
-export function isValidBranchName(name: string): boolean {
+function isValidBranchName(name: string): boolean {
 	if (!name) return false;
 	if (name.startsWith("/") || name.endsWith("/")) return false;
 	if (name.startsWith("-") || name.startsWith(".")) return false;

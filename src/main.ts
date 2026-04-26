@@ -55,7 +55,9 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 		// Status display
 		this.statusDisplay = new SyncStatusDisplay(this);
-		this.statusDisplay.setClickHandler((evt) => this.showBranchMenu(evt));
+		this.statusDisplay.setClickHandler((evt) => {
+			void this.showBranchMenu(evt);
+		});
 
 		// Commands
 		this.addCommand({
@@ -110,7 +112,9 @@ export default class GitLabConnectorPlugin extends Plugin {
 				item
 					.setTitle("Switch branch")
 					.setIcon("git-branch-plus")
-					.onClick((evt) => this.showBranchMenu(evt as MouseEvent)),
+					.onClick((evt) => {
+						void this.showBranchMenu(evt as MouseEvent);
+					}),
 			);
 			menu.addSeparator();
 			menu.addItem((item) =>
@@ -457,8 +461,10 @@ export default class GitLabConnectorPlugin extends Plugin {
 
 	// ── Branch picker (status bar) ──────────────────────────
 
-	private showBranchMenu(evt: MouseEvent): void {
-		const current = this.settings.workingBranch || this.settings.branch;
+	private async showBranchMenu(evt: MouseEvent): Promise<void> {
+		const live = await this.getLocalBranch();
+		const current =
+			live ?? this.settings.workingBranch ?? this.settings.branch;
 		const menu = new Menu();
 
 		if (this.cachedBranches.length === 0) {
