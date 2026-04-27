@@ -403,7 +403,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 			.setDesc("Email used in Git commits.")
 			.addText((text) =>
 				text
-					.setPlaceholder("name@example.com")
+					.setPlaceholder("Name@example.com")
 					.setValue(this.plugin.settings.authorEmail)
 					.onChange(async (value) => {
 						this.plugin.settings.authorEmail = value.trim();
