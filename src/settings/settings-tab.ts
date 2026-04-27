@@ -58,7 +58,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Personal access token")
 			.setDesc(
-				"A GitLab personal access token with read_repository and write_repository scopes (Git mode), or API/read_API scope (rest API mode). Stored securely using Obsidian's secret storage.",
+				"A GitLab personal access token with read_repository and write_repository scopes (Git mode), or API/read_API scope (REST API mode). Stored securely using Obsidian's secret storage.",
 			)
 			.addText((text) => {
 				text.inputEl.type = "password";
@@ -289,12 +289,12 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Sync mode")
 			.setDesc(
-				"Isomorphic-Git: full Git operations, supports offline commits (not recommended on mobile — clones the entire repo into device storage). Rest API: lightweight, stateless, recommended for mobile and Android.",
+				"Isomorphic-Git: full Git operations, supports offline commits (not recommended on mobile — clones the entire repo into device storage). REST API: lightweight, stateless, recommended for mobile and Android.",
 			)
 			.addDropdown((dd) =>
 				dd
 					.addOption(SyncMode.ISOMORPHIC_GIT, "Isomorphic-Git (offline capable)")
-					.addOption(SyncMode.REST_API, "Rest API (lightweight)")
+					.addOption(SyncMode.REST_API, "REST API (lightweight)")
 					.setValue(this.plugin.settings.syncMode)
 					.onChange(async (value) => {
 						this.plugin.settings.syncMode = value as SyncMode;
@@ -375,7 +375,7 @@ export class GitLabConnectorSettingsTab extends PluginSettingTab {
 					btn
 						.setButtonText("Reset")
 						.setWarning()
-						.onClick(async () => {
+						.onClick(() => {
 							this.plugin.resetGitRepo();
 							new Notice("Local Git repository has been reset.");
 						}),
