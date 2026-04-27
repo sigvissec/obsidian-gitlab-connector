@@ -102,7 +102,7 @@ describe("no changes", () => {
 		const remoteFiles = [rf("notes/a.md", "sha-a")];
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -121,7 +121,7 @@ describe("local changes", () => {
 		const remoteFiles: RemoteFileInfo[] = [];
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -147,7 +147,7 @@ describe("local changes", () => {
 		const remoteFiles = [rf("notes/a.md", "sha-a")]; // remote unchanged
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -173,7 +173,7 @@ describe("local changes", () => {
 		const remoteFiles = [rf("notes/a.md", "sha-a")]; // still on remote
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -196,7 +196,7 @@ describe("remote changes", () => {
 		const remoteFiles = [rf("notes/new.md", "sha-new")];
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "hello",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -222,7 +222,7 @@ describe("remote changes", () => {
 		const remoteFiles = [rf("notes/a.md", "sha-a-new")]; // remote SHA advanced
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -248,7 +248,7 @@ describe("remote changes", () => {
 		const remoteFiles: RemoteFileInfo[] = []; // file gone from remote
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -278,7 +278,7 @@ describe("bothChanged", () => {
 		const remoteFiles = [rf("notes/a.md", "sha-a-new")]; // remote also changed
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-b",
+			vault, sm, remoteFiles,
 			"", "",
 		);
 
@@ -307,7 +307,7 @@ describe("dotDirMap regression", () => {
 		const dotDirMap = { ".github": "_github" };
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "", dotDirMap,
 		);
 
@@ -331,7 +331,7 @@ describe("dotDirMap regression", () => {
 		const dotDirMap = { ".github": "_github" };
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "", dotDirMap,
 		);
 
@@ -359,7 +359,7 @@ describe("dotDirMap regression", () => {
 		const dotDirMap = { ".github": "_github" }; // _templates NOT in map
 
 		const result = await detectChanges(
-			vault, sm, remoteFiles, async () => "content-a",
+			vault, sm, remoteFiles,
 			"", "", dotDirMap,
 		);
 

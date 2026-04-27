@@ -1,4 +1,5 @@
 import obsidianmd from "eslint-plugin-obsidianmd";
+import { DEFAULT_ACRONYMS } from "eslint-plugin-obsidianmd/dist/lib/rules/ui/acronyms.js";
 
 export default [
 	{
@@ -23,8 +24,12 @@ export default [
 		rules: {
 			"obsidianmd/ui/sentence-case": [
 				"error",
-				{ allowAutoFix: true },
+				{
+					allowAutoFix: true,
+					acronyms: [...DEFAULT_ACRONYMS, "REST"],
+				},
 			],
+			"@typescript-eslint/require-await": "error",
 		},
 	},
 ];
